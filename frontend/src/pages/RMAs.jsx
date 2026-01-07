@@ -52,6 +52,7 @@ function RMAs() {
     reason: '',
     description: ''
   });
+  const [analyzedImagePath, setAnalyzedImagePath] = useState(null);
 
   const canEdit = user?.role === 'admin' || user?.role === 'technician';
 
@@ -84,11 +85,23 @@ function RMAs() {
 
   const createRMA = useMutation({
     mutationFn: (data) => rmasApi.create(data),
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
+      const rmaId = response.data.id;
+
+      // If we have an analyzed image, attach it to the RMA
+      if (analyzedImagePath) {
+        try {
+          // The image is already saved, we just need to link it to the RMA
+          await rmasApi.linkImage(rmaId, analyzedImagePath);
+        } catch (error) {
+          console.error('Failed to link image:', error);
+        }
+      }
+
       queryClient.invalidateQueries(['rmas']);
       queryClient.invalidateQueries(['rma-stats']);
-      resetForm();
       toast.success(`RMA ${response.data.rma_number} created`);
+      resetForm();
     }
   });
 
@@ -104,6 +117,7 @@ function RMAs() {
     });
     setAnalysisResult(null);
     setPreviewImage(null);
+    setAnalyzedImagePath(null);
   };
 
   const handleImageUpload = async (e) => {
@@ -118,6 +132,7 @@ function RMAs() {
     // Analyze with AI
     setAnalyzing(true);
     setAnalysisResult(null);
+    setAnalyzedImagePath(null);
 
     try {
       const formDataUpload = new FormData();
@@ -127,6 +142,11 @@ function RMAs() {
       const analysis = response.data.analysis;
 
       setAnalysisResult(analysis);
+
+      // Save the image path so we can link it to the RMA after creation
+      if (response.data.image_path) {
+        setAnalyzedImagePath(response.data.image_path);
+      }
 
       // Auto-fill form fields
       if (analysis.item_name) {
@@ -243,12 +263,23 @@ function RMAs() {
                 to={`/rmas/${rma.id}`}
                 className="card p-5 flex items-center gap-4 hover:shadow-soft-lg transition-all group"
               >
-                <div className={clsx(
-                  'w-12 h-12 rounded-xl flex items-center justify-center border',
-                  statusConfig?.color
-                )}>
-                  <StatusIcon className="w-6 h-6" />
-                </div>
+                {/* Thumbnail or status icon */}
+                {rma.thumbnail ? (
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-dark-100 flex-shrink-0">
+                    <img
+                      src={rma.thumbnail}
+                      alt={rma.item_name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className={clsx(
+                    'w-16 h-16 rounded-xl flex items-center justify-center border flex-shrink-0',
+                    statusConfig?.color
+                  )}>
+                    <StatusIcon className="w-7 h-7" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-semibold text-primary-600">

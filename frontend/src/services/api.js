@@ -140,6 +140,7 @@ export const rmasApi = {
   uploadImage: (id, formData) => api.post(`/rmas/${id}/images`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+  linkImage: (id, image_path) => api.post(`/rmas/${id}/images/link`, { image_path }),
   analyzeImage: (formData) => api.post('/rmas/analyze-image', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),

@@ -73,7 +73,8 @@ router.get('/', authenticate, async (req, res, next) => {
       SELECT r.*,
              u.name as created_by_name,
              e.name as equipment_name,
-             (SELECT COUNT(*) FROM rma_images WHERE rma_id = r.id) as image_count
+             (SELECT COUNT(*) FROM rma_images WHERE rma_id = r.id) as image_count,
+             (SELECT file_path FROM rma_images WHERE rma_id = r.id ORDER BY created_at LIMIT 1) as thumbnail
       FROM rmas r
       LEFT JOIN users u ON r.created_by = u.id
       LEFT JOIN equipment e ON r.equipment_id = e.id
@@ -306,6 +307,37 @@ router.post('/:id/images', authenticate, isTechnician, upload.single('image'), a
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `, [id, filePath, req.file.originalname, req.file.mimetype]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Link existing image to RMA (from AI analysis)
+router.post('/:id/images/link', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { image_path } = req.body;
+
+    if (!image_path) {
+      return res.status(400).json({ error: 'Image path is required' });
+    }
+
+    // Verify RMA exists
+    const rma = await query('SELECT id FROM rmas WHERE id = $1', [id]);
+    if (rma.rows.length === 0) {
+      return res.status(404).json({ error: 'RMA not found' });
+    }
+
+    // Extract filename from path
+    const filename = path.basename(image_path);
+
+    const result = await query(`
+      INSERT INTO rma_images (rma_id, file_path, original_name, file_type)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [id, image_path, filename, 'image/jpeg']);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {

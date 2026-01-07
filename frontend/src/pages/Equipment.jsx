@@ -52,6 +52,7 @@ function Equipment() {
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const { data: equipmentData, isLoading } = useQuery({
     queryKey: ['equipment', page, search],
@@ -123,7 +124,10 @@ function Equipment() {
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    await processFile(file);
+  };
 
+  const processFile = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -140,6 +144,37 @@ function Equipment() {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    const allowedExtensions = ['.xlsx', '.xls', '.csv'];
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!allowedExtensions.includes(ext)) {
+      toast.error('Only Excel (.xlsx, .xls) and CSV files are allowed');
+      return;
+    }
+
+    await processFile(file);
   };
 
   const handleImportExecute = async () => {
@@ -493,10 +528,19 @@ function Equipment() {
                   />
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="mx-auto w-48 h-48 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`mx-auto w-64 h-64 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${
+                      isDragging
+                        ? 'border-primary-500 bg-primary-50 scale-105'
+                        : 'border-gray-300 hover:border-primary-500 hover:bg-primary-50'
+                    }`}
                   >
-                    <Upload className="w-12 h-12 text-gray-400 mb-3" />
-                    <p className="text-sm font-medium text-gray-700">Click to upload</p>
+                    <Upload className={`w-12 h-12 mb-3 transition-colors ${isDragging ? 'text-primary-500' : 'text-gray-400'}`} />
+                    <p className="text-sm font-medium text-gray-700">
+                      {isDragging ? 'Drop file here' : 'Click or drag to upload'}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">.xlsx, .xls, or .csv</p>
                   </div>
                   <p className="mt-6 text-sm text-gray-500">
