@@ -12,6 +12,7 @@ import Equipment from './pages/Equipment';
 import Search from './pages/Search';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import Todos from './pages/Todos';
 
 function ProtectedRoute({ children, roles }) {
   const { user, isAuthenticated } = useAuthStore();
@@ -62,6 +63,7 @@ function App() {
         <Route path="issues/:id" element={<IssueDetail />} />
         <Route path="manuals" element={<Manuals />} />
         <Route path="equipment" element={<Equipment />} />
+        <Route path="todos" element={<Todos />} />
         <Route path="search" element={<Search />} />
         <Route path="users" element={
           <ProtectedRoute roles={['admin']}>

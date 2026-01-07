@@ -108,4 +108,15 @@ export const dashboardApi = {
   markAllRead: () => api.post('/dashboard/notifications/read-all'),
 };
 
+export const todosApi = {
+  getAll: (params) => api.get('/todos', { params }),
+  getOne: (id) => api.get(`/todos/${id}`),
+  create: (data) => api.post('/todos', data),
+  update: (id, data) => api.put(`/todos/${id}`, data),
+  delete: (id) => api.delete(`/todos/${id}`),
+  toggle: (id) => api.post(`/todos/${id}/toggle`),
+  convertToIssue: (id) => api.post(`/todos/${id}/convert-to-issue`),
+  reorder: (order) => api.post('/todos/reorder', { order }),
+};
+
 export default api;

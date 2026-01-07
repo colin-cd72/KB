@@ -13,13 +13,15 @@ import {
   Menu,
   X,
   Bell,
-  ChevronDown
+  ChevronDown,
+  CheckSquare
 } from 'lucide-react';
 import clsx from 'clsx';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Issues', href: '/issues', icon: AlertCircle },
+  { name: 'Todos', href: '/todos', icon: CheckSquare },
   { name: 'Manuals', href: '/manuals', icon: BookOpen },
   { name: 'Equipment', href: '/equipment', icon: Monitor },
   { name: 'Search', href: '/search', icon: Search },
