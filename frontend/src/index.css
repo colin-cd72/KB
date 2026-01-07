@@ -179,7 +179,7 @@
   /* Navigation Items */
   .nav-item {
     @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium
-           transition-all duration-200 group relative overflow-hidden;
+           transition-all duration-200 relative overflow-hidden;
   }
 
   .nav-item-active {
@@ -247,8 +247,11 @@
   /* Tooltips */
   .tooltip {
     @apply absolute z-50 px-3 py-2 text-xs font-medium text-white bg-dark-800
-           rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100
-           group-hover:visible transition-all duration-200;
+           rounded-lg shadow-lg opacity-0 invisible transition-all duration-200;
+  }
+
+  *:hover > .tooltip {
+    @apply opacity-100 visible;
   }
 
   /* Dropdown Menu */
@@ -372,13 +375,17 @@
 
   /* Feature Card */
   .feature-card {
-    @apply card p-6 group cursor-pointer;
+    @apply card p-6 cursor-pointer;
   }
 
   .feature-card-icon {
     @apply w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600
            flex items-center justify-center text-white shadow-lg shadow-primary-500/25
-           group-hover:scale-110 transition-transform duration-300;
+           transition-transform duration-300;
+  }
+
+  .feature-card:hover .feature-card-icon {
+    @apply scale-110;
   }
 }
 
