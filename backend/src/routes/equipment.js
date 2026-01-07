@@ -57,7 +57,7 @@ const validate = (req, res, next) => {
 // Get all equipment
 router.get('/', authenticate, isViewer, async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, search, location } = req.query;
+    const { page = 1, limit = 20, search, location, sortBy = 'name', sortOrder = 'asc' } = req.query;
     const offset = (page - 1) * limit;
 
     let whereClause = 'WHERE is_active = true';
@@ -75,6 +75,11 @@ router.get('/', authenticate, isViewer, async (req, res, next) => {
       params.push(`%${location}%`);
     }
 
+    // Validate sort column to prevent SQL injection
+    const validSortColumns = ['name', 'model', 'location', 'manufacturer', 'serial_number', 'created_at'];
+    const sortColumn = validSortColumns.includes(sortBy) ? sortBy : 'name';
+    const sortDirection = sortOrder === 'desc' ? 'DESC' : 'ASC';
+
     params.push(limit, offset);
 
     const result = await query(
@@ -84,7 +89,7 @@ router.get('/', authenticate, isViewer, async (req, res, next) => {
               (SELECT COUNT(*) FROM manuals WHERE equipment_id = e.id) as manual_count
        FROM equipment e
        ${whereClause}
-       ORDER BY e.name
+       ORDER BY e.${sortColumn} ${sortDirection} NULLS LAST
        LIMIT $${paramCount++} OFFSET $${paramCount}`,
       params
     );
