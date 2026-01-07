@@ -86,7 +86,7 @@ function Layout() {
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-1 bg-white border-r border-gray-200">
           <div className="flex items-center h-16 px-6 border-b">
-            <span className="text-2xl font-bold text-primary-600">Knowledge Base</span>
+            <span className="text-xl font-bold text-primary-600">TMRW Sports KB</span>
           </div>
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             {allNavigation.map((item) => (
