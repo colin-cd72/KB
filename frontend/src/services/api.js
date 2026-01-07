@@ -71,6 +71,11 @@ export const equipmentApi = {
   delete: (id) => api.delete(`/equipment/${id}`),
   regenerateQR: (id) => api.post(`/equipment/${id}/regenerate-qr`),
   getLocations: () => api.get('/equipment/meta/locations'),
+  importPreview: (formData) => api.post('/equipment/import/preview', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  importExecute: (data) => api.post('/equipment/import/execute', data),
+  importCancel: (tempFile) => api.post('/equipment/import/cancel', { tempFile }),
 };
 
 export const categoriesApi = {

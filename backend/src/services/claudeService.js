@@ -218,10 +218,101 @@ If no related issues, respond with "NONE".`
   }
 }
 
+/**
+ * AI-powered column mapping for equipment import
+ * Analyzes headers and sample data to suggest the best field mappings
+ */
+async function suggestColumnMappings(headers, sampleRows, equipmentFields) {
+  try {
+    // Build a representation of the data
+    const sampleData = headers.map(header => {
+      const samples = sampleRows
+        .map(row => row[header])
+        .filter(v => v && v.trim())
+        .slice(0, 3);
+      return `Column: "${header}"\nSample values: ${samples.length > 0 ? samples.join(', ') : '(empty)'}`;
+    }).join('\n\n');
+
+    const fieldDescriptions = {
+      name: 'Equipment name/title (required) - the primary identifier for the equipment',
+      model: 'Model number or product model name',
+      serial_number: 'Serial number or unique identifier for individual units',
+      manufacturer: 'Manufacturer, brand, or vendor name',
+      location: 'Physical location, room, building, or site where equipment is located',
+      description: 'General description, notes, or additional details about the equipment'
+    };
+
+    const fieldList = equipmentFields.map(f => `- ${f}: ${fieldDescriptions[f] || f}`).join('\n');
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content: `You are helping map spreadsheet columns to equipment database fields for an import.
+
+Analyze these spreadsheet columns and their sample values:
+
+${sampleData}
+
+Available equipment fields to map to:
+${fieldList}
+
+For each spreadsheet column, determine the best matching equipment field based on:
+1. The column header name
+2. The actual data values in the samples
+3. The meaning and purpose of each field
+
+Respond in this exact JSON format (no markdown, just the JSON object):
+{
+  "mappings": {
+    "Column Header 1": "field_name or null",
+    "Column Header 2": "field_name or null"
+  },
+  "confidence": "high/medium/low",
+  "notes": "Brief explanation of any uncertain mappings"
+}
+
+Use null for columns that don't match any equipment field. Each equipment field should only be mapped once (to its best match).`
+        }
+      ]
+    });
+
+    const text = response.content[0].text.trim();
+
+    // Parse the JSON response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+
+      // Convert null values to empty strings and filter valid mappings
+      const mappings = {};
+      for (const [header, field] of Object.entries(result.mappings || {})) {
+        if (field && equipmentFields.includes(field)) {
+          mappings[header] = field;
+        }
+      }
+
+      return {
+        mappings,
+        confidence: result.confidence || 'medium',
+        notes: result.notes || ''
+      };
+    }
+
+    return { mappings: {}, confidence: 'low', notes: 'Could not parse AI response' };
+  } catch (error) {
+    console.error('AI column mapping error:', error);
+    return { mappings: {}, confidence: 'low', notes: 'AI analysis failed' };
+  }
+}
+
 module.exports = {
   searchAssistant,
   suggestCategory,
   checkDuplicate,
   summarizeContent,
-  suggestRelatedIssues
+  suggestRelatedIssues,
+  suggestColumnMappings
 };

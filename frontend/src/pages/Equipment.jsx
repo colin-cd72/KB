@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { equipmentApi } from '../services/api';
@@ -15,13 +15,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit,
-  Trash2
+  Trash2,
+  Upload,
+  FileSpreadsheet,
+  ArrowRight,
+  Check,
+  AlertTriangle,
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 function Equipment() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const fileInputRef = useRef(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -35,6 +43,15 @@ function Equipment() {
     location: '',
     description: ''
   });
+
+  // Import state
+  const [showImport, setShowImport] = useState(false);
+  const [importStep, setImportStep] = useState(1); // 1: upload, 2: map columns, 3: results
+  const [importData, setImportData] = useState(null);
+  const [columnMappings, setColumnMappings] = useState({});
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [importResults, setImportResults] = useState(null);
 
   const { data: equipmentData, isLoading } = useQuery({
     queryKey: ['equipment', page, search],
@@ -86,6 +103,81 @@ function Equipment() {
     setFormData({ name: '', model: '', serial_number: '', manufacturer: '', location: '', description: '' });
   };
 
+  // Import functions
+  const resetImport = async () => {
+    if (importData?.tempFile) {
+      try {
+        await equipmentApi.importCancel(importData.tempFile);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+    setShowImport(false);
+    setImportStep(1);
+    setImportData(null);
+    setColumnMappings({});
+    setImportResults(null);
+    setImporting(false);
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await equipmentApi.importPreview(formData);
+      setImportData(response.data);
+      setColumnMappings(response.data.suggestedMappings || {});
+      setImportStep(2);
+    } catch (error) {
+      // Error is handled by API interceptor
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImportExecute = async () => {
+    if (!importData?.tempFile) return;
+
+    // Validate that name is mapped
+    const mappedFields = Object.values(columnMappings);
+    if (!mappedFields.includes('name')) {
+      toast.error('You must map the Equipment Name field');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const response = await equipmentApi.importExecute({
+        tempFile: importData.tempFile,
+        mappings: columnMappings,
+        skipDuplicates
+      });
+      setImportResults(response.data.results);
+      setImportStep(3);
+      queryClient.invalidateQueries(['equipment']);
+    } catch (error) {
+      // Error is handled by API interceptor
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const fieldLabels = {
+    name: 'Name (Required)',
+    model: 'Model',
+    serial_number: 'Serial Number',
+    manufacturer: 'Manufacturer',
+    location: 'Location',
+    description: 'Description'
+  };
+
   const handleEdit = (eq) => {
     setFormData({
       name: eq.name || '',
@@ -121,13 +213,22 @@ function Equipment() {
           </p>
         </div>
         {canEdit && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="btn btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Add Equipment
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowImport(true)}
+              className="btn btn-secondary flex items-center gap-2"
+            >
+              <Upload className="w-5 h-5" />
+              Import
+            </button>
+            <button
+              onClick={() => setShowForm(true)}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Add Equipment
+            </button>
+          </div>
         )}
       </div>
 
@@ -355,6 +456,247 @@ function Equipment() {
           </div>
         </div>
       )}
+
+      {/* Import Modal */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet className="w-6 h-6 text-primary-600" />
+                <div>
+                  <h2 className="text-lg font-semibold">Import Equipment</h2>
+                  <p className="text-sm text-gray-500">
+                    {importStep === 1 && 'Upload an Excel or CSV file'}
+                    {importStep === 2 && `Map columns for ${importData?.totalRows || 0} rows`}
+                    {importStep === 3 && 'Import complete'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={resetImport} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto p-6">
+              {/* Step 1: Upload */}
+              {importStep === 1 && (
+                <div className="text-center py-12">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="mx-auto w-48 h-48 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                  >
+                    <Upload className="w-12 h-12 text-gray-400 mb-3" />
+                    <p className="text-sm font-medium text-gray-700">Click to upload</p>
+                    <p className="text-xs text-gray-500 mt-1">.xlsx, .xls, or .csv</p>
+                  </div>
+                  <p className="mt-6 text-sm text-gray-500">
+                    First row should contain column headers
+                  </p>
+                </div>
+              )}
+
+              {/* Step 2: Map Columns */}
+              {importStep === 2 && importData && (
+                <div className="space-y-6">
+                  {/* Info banner */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                    <FileSpreadsheet className="w-5 h-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">
+                        {importData.filename} - {importData.totalRows} rows found
+                      </p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        Map your spreadsheet columns to equipment fields below
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* AI Analysis badge */}
+                  {importData.aiAnalysis && (
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                      importData.aiAnalysis.confidence === 'high'
+                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        : importData.aiAnalysis.confidence === 'medium'
+                        ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                        : 'bg-gray-50 text-gray-700 border border-gray-200'
+                    }`}>
+                      <Sparkles className="w-4 h-4" />
+                      <span className="font-medium">AI-suggested mappings</span>
+                      <span className="text-xs opacity-75">
+                        ({importData.aiAnalysis.confidence} confidence)
+                      </span>
+                      {importData.aiAnalysis.notes && (
+                        <span className="text-xs opacity-75 ml-2">
+                          — {importData.aiAnalysis.notes}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Column mappings */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {importData.headers.map((header) => (
+                      <div key={header} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">{header}</p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {importData.previewRows[0]?.[header] || '(empty)'}
+                          </p>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <select
+                          value={columnMappings[header] || ''}
+                          onChange={(e) => setColumnMappings({ ...columnMappings, [header]: e.target.value })}
+                          className="input py-1.5 w-40"
+                        >
+                          <option value="">Skip this column</option>
+                          {importData.equipmentFields.map((field) => (
+                            <option key={field} value={field}>
+                              {fieldLabels[field] || field}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Options */}
+                  <div className="border-t pt-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={skipDuplicates}
+                        onChange={(e) => setSkipDuplicates(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-primary-600"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Skip rows with duplicate serial numbers
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Preview table */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 mb-2">Preview (first 5 rows)</h3>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            {importData.headers.map((header) => (
+                              <th key={header} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {importData.previewRows.slice(0, 5).map((row, i) => (
+                            <tr key={i}>
+                              {importData.headers.map((header) => (
+                                <td key={header} className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">
+                                  {row[header] || '-'}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Results */}
+              {importStep === 3 && importResults && (
+                <div className="text-center py-8">
+                  <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
+                    importResults.imported > 0 ? 'bg-green-100' : 'bg-yellow-100'
+                  }`}>
+                    {importResults.imported > 0 ? (
+                      <Check className="w-8 h-8 text-green-600" />
+                    ) : (
+                      <AlertTriangle className="w-8 h-8 text-yellow-600" />
+                    )}
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Import Complete</h3>
+                  <div className="flex justify-center gap-8 mb-6">
+                    <div>
+                      <p className="text-3xl font-bold text-green-600">{importResults.imported}</p>
+                      <p className="text-sm text-gray-500">Imported</p>
+                    </div>
+                    <div>
+                      <p className="text-3xl font-bold text-yellow-600">{importResults.skipped}</p>
+                      <p className="text-sm text-gray-500">Skipped</p>
+                    </div>
+                  </div>
+
+                  {importResults.errors.length > 0 && (
+                    <div className="text-left max-w-md mx-auto">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Errors:</h4>
+                      <div className="max-h-40 overflow-y-auto bg-gray-50 rounded-lg p-3 text-sm">
+                        {importResults.errors.slice(0, 20).map((err, i) => (
+                          <p key={i} className="text-gray-600">
+                            <span className="font-medium">Row {err.row}:</span> {err.error}
+                          </p>
+                        ))}
+                        {importResults.errors.length > 20 && (
+                          <p className="text-gray-500 mt-2">
+                            ...and {importResults.errors.length - 20} more errors
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t flex justify-end gap-3">
+              {importStep === 2 && (
+                <>
+                  <button onClick={resetImport} className="btn btn-secondary">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleImportExecute}
+                    disabled={importing}
+                    className="btn btn-primary flex items-center gap-2"
+                  >
+                    {importing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Import {importData?.totalRows || 0} Rows
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+              {importStep === 3 && (
+                <button onClick={resetImport} className="btn btn-primary">
+                  Done
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
