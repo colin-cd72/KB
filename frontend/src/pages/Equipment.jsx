@@ -53,6 +53,7 @@ function Equipment() {
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const { data: equipmentData, isLoading } = useQuery({
     queryKey: ['equipment', page, search],
@@ -131,6 +132,7 @@ function Equipment() {
     const formData = new FormData();
     formData.append('file', file);
 
+    setUploading(true);
     try {
       const response = await equipmentApi.importPreview(formData);
       setImportData(response.data);
@@ -138,6 +140,8 @@ function Equipment() {
       setImportStep(2);
     } catch (error) {
       // Error is handled by API interceptor
+    } finally {
+      setUploading(false);
     }
 
     // Reset file input
@@ -547,7 +551,7 @@ function Equipment() {
                   onDragEnter={handleDragEnter}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
+                  onDrop={uploading ? undefined : handleDrop}
                 >
                   <input
                     ref={fileInputRef}
@@ -555,20 +559,33 @@ function Equipment() {
                     accept=".xlsx,.xls,.csv"
                     onChange={handleFileUpload}
                     className="hidden"
+                    disabled={uploading}
                   />
                   <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`mx-auto w-64 h-64 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${
-                      isDragging
-                        ? 'border-primary-500 bg-primary-100 scale-105 shadow-lg'
-                        : 'border-gray-300 hover:border-primary-500 hover:bg-primary-50'
+                    onClick={() => !uploading && fileInputRef.current?.click()}
+                    className={`mx-auto w-64 h-64 border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all ${
+                      uploading
+                        ? 'border-primary-500 bg-primary-50 cursor-wait'
+                        : isDragging
+                        ? 'border-primary-500 bg-primary-100 scale-105 shadow-lg cursor-pointer'
+                        : 'border-gray-300 hover:border-primary-500 hover:bg-primary-50 cursor-pointer'
                     }`}
                   >
-                    <Upload className={`w-12 h-12 mb-3 transition-colors ${isDragging ? 'text-primary-600' : 'text-gray-400'}`} />
-                    <p className={`text-sm font-medium ${isDragging ? 'text-primary-700' : 'text-gray-700'}`}>
-                      {isDragging ? 'Drop file here!' : 'Click or drag to upload'}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">.xlsx, .xls, or .csv</p>
+                    {uploading ? (
+                      <>
+                        <Loader2 className="w-12 h-12 mb-3 text-primary-600 animate-spin" />
+                        <p className="text-sm font-medium text-primary-700">Processing file...</p>
+                        <p className="text-xs text-primary-500 mt-1">Analyzing with AI</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className={`w-12 h-12 mb-3 transition-colors ${isDragging ? 'text-primary-600' : 'text-gray-400'}`} />
+                        <p className={`text-sm font-medium ${isDragging ? 'text-primary-700' : 'text-gray-700'}`}>
+                          {isDragging ? 'Drop file here!' : 'Click or drag to upload'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">.xlsx, .xls, or .csv</p>
+                      </>
+                    )}
                   </div>
                   <p className="mt-6 text-sm text-gray-500">
                     First row should contain column headers
@@ -616,29 +633,44 @@ function Equipment() {
 
                   {/* Column mappings */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {importData.headers.map((header) => (
-                      <div key={header} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{header}</p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {importData.previewRows[0]?.[header] || '(empty)'}
-                          </p>
+                    {importData.headers.map((header) => {
+                      const isMapped = columnMappings[header] && columnMappings[header] !== '';
+                      return (
+                        <div key={header} className={`flex items-center gap-3 p-3 rounded-lg ${isMapped ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">{header}</p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {importData.previewRows[0]?.[header] || '(empty)'}
+                            </p>
+                          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <select
+                            value={columnMappings[header] || ''}
+                            onChange={(e) => setColumnMappings({ ...columnMappings, [header]: e.target.value })}
+                            className="input py-1.5 w-44"
+                          >
+                            <option value="">Custom Field</option>
+                            {importData.equipmentFields.map((field) => (
+                              <option key={field} value={field}>
+                                {fieldLabels[field] || field}
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                        <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                        <select
-                          value={columnMappings[header] || ''}
-                          onChange={(e) => setColumnMappings({ ...columnMappings, [header]: e.target.value })}
-                          className="input py-1.5 w-40"
-                        >
-                          <option value="">Skip this column</option>
-                          {importData.equipmentFields.map((field) => (
-                            <option key={field} value={field}>
-                              {fieldLabels[field] || field}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
+                      );
+                    })}
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex items-center gap-4 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded bg-green-200 border border-green-300"></div>
+                      <span className="text-gray-600">Mapped to standard field</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded bg-blue-200 border border-blue-300"></div>
+                      <span className="text-gray-600">Will be saved as custom field</span>
+                    </div>
                   </div>
 
                   {/* Options */}
