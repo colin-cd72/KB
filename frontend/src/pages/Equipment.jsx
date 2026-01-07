@@ -649,7 +649,7 @@ function Equipment() {
                             onChange={(e) => setColumnMappings({ ...columnMappings, [header]: e.target.value })}
                             className="input py-1.5 w-44"
                           >
-                            <option value="">Custom Field</option>
+                            <option value="">New Column</option>
                             {importData.equipmentFields.map((field) => (
                               <option key={field} value={field}>
                                 {fieldLabels[field] || field}
@@ -665,11 +665,11 @@ function Equipment() {
                   <div className="flex items-center gap-4 text-xs">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded bg-green-200 border border-green-300"></div>
-                      <span className="text-gray-600">Mapped to standard field</span>
+                      <span className="text-gray-600">Mapped to existing field</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded bg-blue-200 border border-blue-300"></div>
-                      <span className="text-gray-600">Will be saved as custom field</span>
+                      <span className="text-gray-600">Will create new database column</span>
                     </div>
                   </div>
 
@@ -743,13 +743,13 @@ function Equipment() {
                     </div>
                   </div>
 
-                  {/* Custom fields added */}
-                  {importResults.customFieldsAdded?.length > 0 && (
+                  {/* New columns created */}
+                  {importResults.columnsCreated?.length > 0 && (
                     <div className="text-left max-w-md mx-auto mb-4">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Custom fields added:</h4>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">New database columns created:</h4>
                       <div className="flex flex-wrap gap-2">
-                        {importResults.customFieldsAdded.map((field, i) => (
-                          <span key={i} className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs font-medium">
+                        {importResults.columnsCreated.map((field, i) => (
+                          <span key={i} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
                             {field}
                           </span>
                         ))}

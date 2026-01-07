@@ -407,19 +407,24 @@ router.post('/import/preview', authenticate, isTechnician, upload.single('file')
   }
 });
 
+// Helper function to sanitize column names for PostgreSQL
+function sanitizeColumnName(name) {
+  // Convert to lowercase, replace spaces and special chars with underscores
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
+    .substring(0, 63); // PostgreSQL max identifier length
+}
+
 // Execute the import with column mappings
 router.post('/import/execute', authenticate, isTechnician, async (req, res, next) => {
   try {
     const { tempFile, mappings, skipDuplicates = true } = req.body;
 
-    if (!tempFile || !mappings) {
-      return res.status(400).json({ error: 'Missing tempFile or mappings' });
-    }
-
-    // Validate that at least 'name' is mapped
-    const mappedFields = Object.values(mappings);
-    if (!mappedFields.includes('name')) {
-      return res.status(400).json({ error: 'Equipment name field must be mapped' });
+    if (!tempFile) {
+      return res.status(400).json({ error: 'Missing tempFile' });
     }
 
     const filePath = path.join(__dirname, '../../uploads/imports', tempFile);
@@ -434,35 +439,96 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
     const worksheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-    const headers = data[0].map(h => String(h || '').trim());
+    const headers = data[0].map(h => String(h || '').trim()).filter(h => h);
     const rows = data.slice(1);
 
-    // Build reverse mapping: equipmentField -> headerIndex
-    const fieldToIndex = {};
-    const mappedHeaders = new Set();
-    for (const [header, field] of Object.entries(mappings)) {
-      if (field && field !== 'skip') {
-        const headerIndex = headers.indexOf(header);
-        if (headerIndex !== -1) {
-          fieldToIndex[field] = headerIndex;
-          mappedHeaders.add(header);
+    // Get existing columns in equipment table
+    const existingColsResult = await query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'equipment'
+    `);
+    const existingColumns = new Set(existingColsResult.rows.map(r => r.column_name));
+
+    // Reserved/system columns that shouldn't be overwritten
+    const reservedColumns = new Set(['id', 'qr_code', 'created_by', 'created_at', 'updated_at', 'is_active', 'custom_fields']);
+
+    // Build column mapping: Excel header -> DB column name
+    const columnMap = {}; // excelHeader -> { dbColumn, isNew }
+    const newColumnsToCreate = [];
+
+    for (const header of headers) {
+      // Check if there's an explicit mapping to a standard field
+      const mappedField = mappings[header];
+
+      if (mappedField && mappedField !== '') {
+        // Explicitly mapped to a standard field
+        columnMap[header] = { dbColumn: mappedField, isNew: false };
+      } else {
+        // Not mapped - create as new column or use sanitized name
+        const sanitized = sanitizeColumnName(header);
+
+        if (reservedColumns.has(sanitized)) {
+          // Skip reserved columns
+          continue;
+        }
+
+        if (!existingColumns.has(sanitized)) {
+          // Need to create this column
+          newColumnsToCreate.push(sanitized);
+        }
+
+        columnMap[header] = { dbColumn: sanitized, isNew: !existingColumns.has(sanitized) };
+      }
+    }
+
+    // Create new columns in the database
+    for (const colName of newColumnsToCreate) {
+      try {
+        await query(`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS "${colName}" TEXT`);
+        console.log(`Created new column: ${colName}`);
+      } catch (err) {
+        console.error(`Failed to create column ${colName}:`, err.message);
+      }
+    }
+
+    // Find the name column (required)
+    let nameHeader = null;
+    for (const [header, mapping] of Object.entries(columnMap)) {
+      if (mapping.dbColumn === 'name') {
+        nameHeader = header;
+        break;
+      }
+    }
+
+    if (!nameHeader) {
+      // Try to find a column that looks like a name
+      for (const header of headers) {
+        const lower = header.toLowerCase();
+        if (lower.includes('name') || lower === 'equipment' || lower === 'item') {
+          nameHeader = header;
+          columnMap[header] = { dbColumn: 'name', isNew: false };
+          break;
         }
       }
     }
 
-    // Find unmapped columns (for custom_fields)
-    const unmappedColumns = headers.filter(h => h && !mappedHeaders.has(h));
+    if (!nameHeader) {
+      fs.unlinkSync(filePath);
+      return res.status(400).json({ error: 'Could not identify a Name column. Please map one column to "Name".' });
+    }
 
     const results = {
       imported: 0,
       skipped: 0,
       errors: [],
-      customFieldsAdded: unmappedColumns.length > 0 ? unmappedColumns : []
+      columnsCreated: newColumnsToCreate
     };
 
     // Get existing serial numbers if checking for duplicates
     let existingSerials = new Set();
-    if (skipDuplicates && fieldToIndex.serial_number !== undefined) {
+    const serialHeader = Object.entries(columnMap).find(([h, m]) => m.dbColumn === 'serial_number')?.[0];
+    if (skipDuplicates && serialHeader) {
       const existing = await query('SELECT serial_number FROM equipment WHERE serial_number IS NOT NULL AND serial_number != \'\'');
       existingSerials = new Set(existing.rows.map(r => r.serial_number.toLowerCase()));
     }
@@ -470,10 +536,12 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
     // Process each row
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const rowNum = i + 2; // Excel row number (1-indexed, +1 for header)
+      const rowNum = i + 2;
 
       try {
-        const name = fieldToIndex.name !== undefined ? String(row[fieldToIndex.name] || '').trim() : '';
+        // Get name value
+        const nameIndex = headers.indexOf(nameHeader);
+        const name = nameIndex !== -1 ? String(row[nameIndex] || '').trim() : '';
 
         if (!name) {
           results.errors.push({ row: rowNum, error: 'Missing name' });
@@ -481,44 +549,44 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
           continue;
         }
 
-        const model = fieldToIndex.model !== undefined ? String(row[fieldToIndex.model] || '').trim() : null;
-        const serial_number = fieldToIndex.serial_number !== undefined ? String(row[fieldToIndex.serial_number] || '').trim() : null;
-        const manufacturer = fieldToIndex.manufacturer !== undefined ? String(row[fieldToIndex.manufacturer] || '').trim() : null;
-        const location = fieldToIndex.location !== undefined ? String(row[fieldToIndex.location] || '').trim() : null;
-        const description = fieldToIndex.description !== undefined ? String(row[fieldToIndex.description] || '').trim() : null;
-
-        // Collect unmapped columns into custom_fields
-        const custom_fields = {};
-        for (const colName of unmappedColumns) {
-          const colIndex = headers.indexOf(colName);
-          if (colIndex !== -1 && row[colIndex] !== undefined && row[colIndex] !== null && String(row[colIndex]).trim() !== '') {
-            custom_fields[colName] = String(row[colIndex]).trim();
+        // Check for duplicate serial number
+        if (skipDuplicates && serialHeader) {
+          const serialIndex = headers.indexOf(serialHeader);
+          const serialValue = serialIndex !== -1 ? String(row[serialIndex] || '').trim() : '';
+          if (serialValue && existingSerials.has(serialValue.toLowerCase())) {
+            results.errors.push({ row: rowNum, error: `Duplicate serial number: ${serialValue}` });
+            results.skipped++;
+            continue;
+          }
+          if (serialValue) {
+            existingSerials.add(serialValue.toLowerCase());
           }
         }
 
-        // Check for duplicate serial number
-        if (skipDuplicates && serial_number && existingSerials.has(serial_number.toLowerCase())) {
-          results.errors.push({ row: rowNum, error: `Duplicate serial number: ${serial_number}` });
-          results.skipped++;
-          continue;
+        // Build INSERT statement dynamically
+        const columns = ['qr_code', 'created_by'];
+        const values = [`KB-${uuidv4().substring(0, 8).toUpperCase()}`, req.user.id];
+        let paramIndex = 3;
+
+        for (const [header, mapping] of Object.entries(columnMap)) {
+          const headerIndex = headers.indexOf(header);
+          if (headerIndex === -1) continue;
+
+          const value = row[headerIndex];
+          const strValue = value !== undefined && value !== null ? String(value).trim() : null;
+
+          if (strValue || mapping.dbColumn === 'name') {
+            columns.push(`"${mapping.dbColumn}"`);
+            values.push(strValue || '');
+          }
         }
 
-        // Generate QR code
-        const qrCode = `KB-${uuidv4().substring(0, 8).toUpperCase()}`;
+        const placeholders = values.map((_, idx) => `$${idx + 1}`).join(', ');
+        const insertSQL = `INSERT INTO equipment (${columns.join(', ')}) VALUES (${placeholders})`;
 
-        // Insert the equipment with custom fields
-        await query(
-          `INSERT INTO equipment (name, model, serial_number, manufacturer, location, description, qr_code, created_by, custom_fields)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [name, model || null, serial_number || null, manufacturer || null, location || null, description || null, qrCode, req.user.id, JSON.stringify(custom_fields)]
-        );
-
+        await query(insertSQL, values);
         results.imported++;
 
-        // Add to existing set to prevent duplicates within same import
-        if (serial_number) {
-          existingSerials.add(serial_number.toLowerCase());
-        }
       } catch (err) {
         results.errors.push({ row: rowNum, error: err.message });
         results.skipped++;
