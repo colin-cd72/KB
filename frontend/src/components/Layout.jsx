@@ -16,7 +16,8 @@ import {
   ChevronDown,
   CheckSquare,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Package
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Overview & stats' },
   { name: 'Issues', href: '/issues', icon: AlertCircle, description: 'Problem tracking' },
   { name: 'Todos', href: '/todos', icon: CheckSquare, description: 'Task management' },
+  { name: 'RMAs', href: '/rmas', icon: Package, description: 'Return tracking' },
   { name: 'Manuals', href: '/manuals', icon: BookOpen, description: 'Documentation' },
   { name: 'Equipment', href: '/equipment', icon: Monitor, description: 'Asset registry' },
   { name: 'Search', href: '/search', icon: Search, description: 'AI-powered search' },

@@ -18,6 +18,7 @@ const searchRoutes = require('./routes/search');
 const dashboardRoutes = require('./routes/dashboard');
 const todoRoutes = require('./routes/todos');
 const settingsRoutes = require('./routes/settings');
+const rmaRoutes = require('./routes/rmas');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -62,6 +63,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/todos', todoRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/rmas', rmaRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

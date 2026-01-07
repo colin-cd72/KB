@@ -125,4 +125,21 @@ export const settingsApi = {
   testAI: (api_key) => api.post('/settings/ai/test', { api_key }),
 };
 
+export const rmasApi = {
+  getAll: (params) => api.get('/rmas', { params }),
+  getOne: (id) => api.get(`/rmas/${id}`),
+  create: (data) => api.post('/rmas', data),
+  update: (id, data) => api.put(`/rmas/${id}`, data),
+  delete: (id) => api.delete(`/rmas/${id}`),
+  updateStatus: (id, status) => api.post(`/rmas/${id}/status`, { status }),
+  uploadImage: (id, formData) => api.post(`/rmas/${id}/images`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  analyzeImage: (formData) => api.post('/rmas/analyze-image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  addNote: (id, content) => api.post(`/rmas/${id}/notes`, { content }),
+  getStats: () => api.get('/rmas/stats/summary'),
+};
+
 export default api;
