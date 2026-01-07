@@ -339,6 +339,19 @@ function Equipment() {
                       {eq.location}
                     </p>
                   )}
+                  {/* Custom fields */}
+                  {eq.custom_fields && Object.keys(eq.custom_fields).length > 0 && (
+                    <div className="pt-2 border-t border-gray-100 space-y-1">
+                      {Object.entries(eq.custom_fields).slice(0, 3).map(([key, value]) => (
+                        <p key={key} className="text-gray-500 truncate">
+                          <span className="font-medium">{key}:</span> {value}
+                        </p>
+                      ))}
+                      {Object.keys(eq.custom_fields).length > 3 && (
+                        <p className="text-gray-400 text-xs">+{Object.keys(eq.custom_fields).length - 3} more fields</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 flex items-center gap-4 text-xs">
@@ -697,6 +710,20 @@ function Equipment() {
                       <p className="text-sm text-gray-500">Skipped</p>
                     </div>
                   </div>
+
+                  {/* Custom fields added */}
+                  {importResults.customFieldsAdded?.length > 0 && (
+                    <div className="text-left max-w-md mx-auto mb-4">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Custom fields added:</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {importResults.customFieldsAdded.map((field, i) => (
+                          <span key={i} className="px-2 py-1 bg-primary-100 text-primary-700 rounded text-xs font-medium">
+                            {field}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {importResults.errors.length > 0 && (
                     <div className="text-left max-w-md mx-auto">

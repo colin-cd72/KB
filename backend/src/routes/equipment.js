@@ -439,19 +439,25 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
 
     // Build reverse mapping: equipmentField -> headerIndex
     const fieldToIndex = {};
+    const mappedHeaders = new Set();
     for (const [header, field] of Object.entries(mappings)) {
       if (field && field !== 'skip') {
         const headerIndex = headers.indexOf(header);
         if (headerIndex !== -1) {
           fieldToIndex[field] = headerIndex;
+          mappedHeaders.add(header);
         }
       }
     }
 
+    // Find unmapped columns (for custom_fields)
+    const unmappedColumns = headers.filter(h => h && !mappedHeaders.has(h));
+
     const results = {
       imported: 0,
       skipped: 0,
-      errors: []
+      errors: [],
+      customFieldsAdded: unmappedColumns.length > 0 ? unmappedColumns : []
     };
 
     // Get existing serial numbers if checking for duplicates
@@ -481,6 +487,15 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
         const location = fieldToIndex.location !== undefined ? String(row[fieldToIndex.location] || '').trim() : null;
         const description = fieldToIndex.description !== undefined ? String(row[fieldToIndex.description] || '').trim() : null;
 
+        // Collect unmapped columns into custom_fields
+        const custom_fields = {};
+        for (const colName of unmappedColumns) {
+          const colIndex = headers.indexOf(colName);
+          if (colIndex !== -1 && row[colIndex] !== undefined && row[colIndex] !== null && String(row[colIndex]).trim() !== '') {
+            custom_fields[colName] = String(row[colIndex]).trim();
+          }
+        }
+
         // Check for duplicate serial number
         if (skipDuplicates && serial_number && existingSerials.has(serial_number.toLowerCase())) {
           results.errors.push({ row: rowNum, error: `Duplicate serial number: ${serial_number}` });
@@ -491,11 +506,11 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
         // Generate QR code
         const qrCode = `KB-${uuidv4().substring(0, 8).toUpperCase()}`;
 
-        // Insert the equipment
+        // Insert the equipment with custom fields
         await query(
-          `INSERT INTO equipment (name, model, serial_number, manufacturer, location, description, qr_code, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [name, model || null, serial_number || null, manufacturer || null, location || null, description || null, qrCode, req.user.id]
+          `INSERT INTO equipment (name, model, serial_number, manufacturer, location, description, qr_code, created_by, custom_fields)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [name, model || null, serial_number || null, manufacturer || null, location || null, description || null, qrCode, req.user.id, JSON.stringify(custom_fields)]
         );
 
         results.imported++;
