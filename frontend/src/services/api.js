@@ -119,4 +119,10 @@ export const todosApi = {
   reorder: (order) => api.post('/todos/reorder', { order }),
 };
 
+export const settingsApi = {
+  getAI: () => api.get('/settings/ai'),
+  updateAI: (api_key) => api.put('/settings/ai', { api_key }),
+  testAI: (api_key) => api.post('/settings/ai/test', { api_key }),
+};
+
 export default api;

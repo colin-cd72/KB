@@ -17,6 +17,7 @@ const equipmentRoutes = require('./routes/equipment');
 const searchRoutes = require('./routes/search');
 const dashboardRoutes = require('./routes/dashboard');
 const todoRoutes = require('./routes/todos');
+const settingsRoutes = require('./routes/settings');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -60,6 +61,7 @@ app.use('/api/equipment', equipmentRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/todos', todoRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
