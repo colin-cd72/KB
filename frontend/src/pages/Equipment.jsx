@@ -146,16 +146,27 @@ function Equipment() {
     }
   };
 
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    if (!isDragging) setIsDragging(true);
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    // Only set to false if we're leaving the drop zone entirely
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = async (e) => {
@@ -518,7 +529,13 @@ function Equipment() {
             <div className="flex-1 overflow-auto p-6">
               {/* Step 1: Upload */}
               {importStep === 1 && (
-                <div className="text-center py-12">
+                <div
+                  className="text-center py-12 min-h-[300px]"
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -528,18 +545,15 @@ function Equipment() {
                   />
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
                     className={`mx-auto w-64 h-64 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${
                       isDragging
-                        ? 'border-primary-500 bg-primary-50 scale-105'
+                        ? 'border-primary-500 bg-primary-100 scale-105 shadow-lg'
                         : 'border-gray-300 hover:border-primary-500 hover:bg-primary-50'
                     }`}
                   >
-                    <Upload className={`w-12 h-12 mb-3 transition-colors ${isDragging ? 'text-primary-500' : 'text-gray-400'}`} />
-                    <p className="text-sm font-medium text-gray-700">
-                      {isDragging ? 'Drop file here' : 'Click or drag to upload'}
+                    <Upload className={`w-12 h-12 mb-3 transition-colors ${isDragging ? 'text-primary-600' : 'text-gray-400'}`} />
+                    <p className={`text-sm font-medium ${isDragging ? 'text-primary-700' : 'text-gray-700'}`}>
+                      {isDragging ? 'Drop file here!' : 'Click or drag to upload'}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">.xlsx, .xls, or .csv</p>
                   </div>
