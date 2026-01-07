@@ -116,13 +116,17 @@
 
   /* Stats Card */
   .stat-card {
-    @apply card p-6 relative overflow-hidden group;
+    @apply card p-6 relative overflow-hidden;
   }
 
   .stat-card::before {
     content: '';
     @apply absolute inset-0 bg-gradient-to-br from-primary-500/5 to-accent-500/5
-           opacity-0 group-hover:opacity-100 transition-opacity duration-300;
+           opacity-0 transition-opacity duration-300;
+  }
+
+  .stat-card:hover::before {
+    @apply opacity-100;
   }
 
   /* Modern Badges */
