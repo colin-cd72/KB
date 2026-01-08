@@ -242,13 +242,6 @@ function Equipment() {
   const handleImportExecute = async () => {
     if (!importData?.tempFile) return;
 
-    // Validate that name is mapped
-    const mappedFields = Object.values(columnMappings);
-    if (!mappedFields.includes('name')) {
-      toast.error('You must map the Equipment Name field');
-      return;
-    }
-
     setImporting(true);
     try {
       const response = await equipmentApi.importExecute({
@@ -267,7 +260,7 @@ function Equipment() {
   };
 
   const fieldLabels = {
-    name: 'Name (Required)',
+    name: 'Name',
     model: 'Model',
     serial_number: 'Serial Number',
     manufacturer: 'Manufacturer',

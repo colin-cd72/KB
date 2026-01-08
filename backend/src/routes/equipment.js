@@ -497,17 +497,20 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
       }
     }
 
-    // Find the name column (required)
+    // Find the name column (optional - will fallback to model or generate one)
     let nameHeader = null;
+    let modelHeader = null;
     for (const [header, mapping] of Object.entries(columnMap)) {
       if (mapping.dbColumn === 'name') {
         nameHeader = header;
-        break;
+      }
+      if (mapping.dbColumn === 'model') {
+        modelHeader = header;
       }
     }
 
+    // If no name mapped, try to find one automatically
     if (!nameHeader) {
-      // Try to find a column that looks like a name
       for (const header of headers) {
         const lower = header.toLowerCase();
         if (lower.includes('name') || lower === 'equipment' || lower === 'item') {
@@ -516,11 +519,6 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
           break;
         }
       }
-    }
-
-    if (!nameHeader) {
-      fs.unlinkSync(filePath);
-      return res.status(400).json({ error: 'Could not identify a Name column. Please map one column to "Name".' });
     }
 
     const results = {
@@ -544,14 +542,22 @@ router.post('/import/execute', authenticate, isTechnician, async (req, res, next
       const rowNum = i + 2;
 
       try {
-        // Get name value
-        const nameIndex = headers.indexOf(nameHeader);
-        const name = nameIndex !== -1 ? String(row[nameIndex] || '').trim() : '';
+        // Get name value - fallback to model if no name mapped/provided
+        let name = '';
+        if (nameHeader) {
+          const nameIndex = headers.indexOf(nameHeader);
+          name = nameIndex !== -1 ? String(row[nameIndex] || '').trim() : '';
+        }
 
+        // Fallback to model if name is empty
+        if (!name && modelHeader) {
+          const modelIndex = headers.indexOf(modelHeader);
+          name = modelIndex !== -1 ? String(row[modelIndex] || '').trim() : '';
+        }
+
+        // Generate name from row number if still empty
         if (!name) {
-          results.errors.push({ row: rowNum, error: 'Missing name' });
-          results.skipped++;
-          continue;
+          name = `Equipment ${rowNum - 1}`;
         }
 
         // Check for duplicate serial number
