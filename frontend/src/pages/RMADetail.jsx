@@ -13,7 +13,6 @@ import {
   Clock,
   Truck,
   PackageCheck,
-  XCircle,
   Send,
   Trash2,
   Edit,
@@ -31,8 +30,7 @@ const STATUS_CONFIG = {
   approved: { label: 'Approved', icon: CheckCircle, color: 'text-primary-600 bg-primary-50 border-primary-200', next: 'shipped' },
   shipped: { label: 'Shipped', icon: Truck, color: 'text-accent-600 bg-accent-50 border-accent-200', next: 'received' },
   received: { label: 'Received', icon: PackageCheck, color: 'text-success-600 bg-success-50 border-success-200', next: 'complete' },
-  complete: { label: 'Complete', icon: CheckCircle, color: 'text-success-600 bg-success-50 border-success-200', next: null },
-  rejected: { label: 'Rejected', icon: XCircle, color: 'text-danger-600 bg-danger-50 border-danger-200', next: null }
+  complete: { label: 'Complete', icon: CheckCircle, color: 'text-success-600 bg-success-50 border-success-200', next: null }
 };
 
 const RESOLUTIONS = [
@@ -140,7 +138,8 @@ function RMADetail() {
       manufacturer_rma_number: rma.manufacturer_rma_number || '',
       contact_name: rma.contact_name || '',
       contact_email: rma.contact_email || '',
-      contact_phone: rma.contact_phone || ''
+      contact_phone: rma.contact_phone || '',
+      shipped_at: rma.shipped_at || null
     });
     setEditing(true);
   };
@@ -239,7 +238,6 @@ function RMADetail() {
                 const Icon = config.icon;
                 const isActive = rma.status === status;
                 const isPast = ['pending', 'approved', 'shipped', 'received', 'complete'].indexOf(rma.status) > idx;
-                const isRejected = rma.status === 'rejected';
 
                 return (
                   <div key={status} className="flex items-center flex-1">
@@ -270,7 +268,7 @@ function RMADetail() {
             </div>
 
             {/* Status Actions */}
-            {canEdit && statusConfig?.next && rma.status !== 'rejected' && (
+            {canEdit && statusConfig?.next && (
               <div className="mt-6 pt-4 border-t border-dark-100 flex items-center gap-3">
                 <button
                   onClick={() => updateStatus.mutate(statusConfig.next)}
@@ -284,16 +282,6 @@ function RMADetail() {
                   )}
                   Mark as {STATUS_CONFIG[statusConfig.next]?.label}
                 </button>
-                {rma.status === 'pending' && (
-                  <button
-                    onClick={() => updateStatus.mutate('rejected')}
-                    disabled={updateStatus.isPending}
-                    className="btn btn-danger flex items-center gap-2"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Reject
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -338,6 +326,15 @@ function RMADetail() {
                       type="text"
                       value={editData.tracking_number}
                       onChange={(e) => setEditData({ ...editData, tracking_number: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Ship Date</label>
+                    <input
+                      type="date"
+                      value={editData.shipped_at ? new Date(editData.shipped_at).toISOString().split('T')[0] : ''}
+                      onChange={(e) => setEditData({ ...editData, shipped_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
                       className="input"
                     />
                   </div>

@@ -170,6 +170,8 @@ export const rmasApi = {
   addNote: (id, content) => api.post(`/rmas/${id}/notes`, { content }),
   getStats: () => api.get('/rmas/stats/summary'),
   lookupModel: (model_number, part_number) => api.post('/rmas/lookup-model', { model_number, part_number }),
+  getContacts: (params) => api.get('/rmas/contacts', { params }),
+  getReports: (params) => api.get('/rmas/reports', { params }),
 };
 
 export default api;

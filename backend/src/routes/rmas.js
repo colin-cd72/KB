@@ -39,7 +39,7 @@ const upload = multer({
 });
 
 // Status flow
-const STATUS_ORDER = ['pending', 'approved', 'shipped', 'received', 'complete', 'rejected'];
+const STATUS_ORDER = ['pending', 'approved', 'shipped', 'received', 'complete'];
 const RESOLUTIONS = ['replaced', 'repaired', 'returned'];
 
 // Get all RMAs with filters
@@ -161,7 +161,11 @@ router.post('/', authenticate, isTechnician, async (req, res, next) => {
       part_number,
       equipment_id,
       reason,
-      description
+      description,
+      contact_name,
+      contact_email,
+      contact_phone,
+      manufacturer_rma_number
     } = req.body;
 
     if (!item_name || !reason) {
@@ -173,10 +177,10 @@ router.post('/', authenticate, isTechnician, async (req, res, next) => {
     const rma_number = rmaNumberResult.rows[0].rma_number;
 
     const result = await query(`
-      INSERT INTO rmas (rma_number, item_name, serial_number, part_number, equipment_id, reason, description, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO rmas (rma_number, item_name, serial_number, part_number, equipment_id, reason, description, created_by, contact_name, contact_email, contact_phone, manufacturer_rma_number)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
-    `, [rma_number, item_name, serial_number, part_number, equipment_id || null, reason, description, req.user.id]);
+    `, [rma_number, item_name, serial_number, part_number, equipment_id || null, reason, description, req.user.id, contact_name || null, contact_email || null, contact_phone || null, manufacturer_rma_number || null]);
 
     const rma = result.rows[0];
 
@@ -209,7 +213,8 @@ router.put('/:id', authenticate, isTechnician, async (req, res, next) => {
       manufacturer_rma_number,
       contact_name,
       contact_email,
-      contact_phone
+      contact_phone,
+      shipped_at
     } = req.body;
 
     // Get current RMA
@@ -233,10 +238,11 @@ router.put('/:id', authenticate, isTechnician, async (req, res, next) => {
         contact_name = COALESCE($11, contact_name),
         contact_email = COALESCE($12, contact_email),
         contact_phone = COALESCE($13, contact_phone),
+        shipped_at = COALESCE($14, shipped_at),
         updated_at = NOW()
-      WHERE id = $14
+      WHERE id = $15
       RETURNING *
-    `, [item_name, serial_number, part_number, equipment_id || null, reason, description, resolution, resolution_notes, tracking_number, manufacturer_rma_number, contact_name, contact_email, contact_phone, id]);
+    `, [item_name, serial_number, part_number, equipment_id || null, reason, description, resolution, resolution_notes, tracking_number, manufacturer_rma_number, contact_name, contact_email, contact_phone, shipped_at || null, id]);
 
     // Log update
     await query(`
@@ -594,6 +600,158 @@ Rules:
   }
 });
 
+// Get previous contacts (for auto-suggest)
+router.get('/contacts', authenticate, async (req, res, next) => {
+  try {
+    const { search, part_number } = req.query;
+
+    // First, check if this part number has been sent to a contact before
+    let suggestedContact = null;
+    if (part_number) {
+      const partMatch = await query(`
+        SELECT DISTINCT contact_name, contact_email, contact_phone
+        FROM rmas
+        WHERE part_number ILIKE $1
+          AND contact_name IS NOT NULL
+          AND contact_name != ''
+        ORDER BY MAX(created_at) DESC
+        LIMIT 1
+      `, [`%${part_number}%`]);
+
+      if (partMatch.rows.length > 0) {
+        suggestedContact = partMatch.rows[0];
+      }
+    }
+
+    // Get all unique contacts for auto-complete
+    let contactsQuery = `
+      SELECT DISTINCT ON (contact_name, contact_email)
+        contact_name, contact_email, contact_phone,
+        COUNT(*) as rma_count
+      FROM rmas
+      WHERE contact_name IS NOT NULL AND contact_name != ''
+    `;
+    const params = [];
+
+    if (search) {
+      contactsQuery += ` AND (
+        contact_name ILIKE $1 OR
+        contact_email ILIKE $1 OR
+        contact_phone ILIKE $1
+      )`;
+      params.push(`%${search}%`);
+    }
+
+    contactsQuery += `
+      GROUP BY contact_name, contact_email, contact_phone
+      ORDER BY contact_name, contact_email, MAX(created_at) DESC
+      LIMIT 10
+    `;
+
+    const contacts = await query(contactsQuery, params);
+
+    res.json({
+      contacts: contacts.rows,
+      suggested_contact: suggestedContact
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get RMA report data
+router.get('/reports', authenticate, async (req, res, next) => {
+  try {
+    const { start_date, end_date, status, contact_name, group_by } = req.query;
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramCount = 1;
+
+    if (start_date) {
+      whereClause += ` AND r.created_at >= $${paramCount++}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      whereClause += ` AND r.created_at <= $${paramCount++}`;
+      params.push(end_date + 'T23:59:59');
+    }
+
+    if (status) {
+      whereClause += ` AND r.status = $${paramCount++}`;
+      params.push(status);
+    }
+
+    if (contact_name) {
+      whereClause += ` AND r.contact_name ILIKE $${paramCount++}`;
+      params.push(`%${contact_name}%`);
+    }
+
+    // Get detailed RMA data for report
+    const rmas = await query(`
+      SELECT r.*,
+             u.name as created_by_name,
+             CASE
+               WHEN r.shipped_at IS NOT NULL AND r.received_at IS NOT NULL
+               THEN EXTRACT(DAY FROM (r.received_at - r.shipped_at))
+               WHEN r.shipped_at IS NOT NULL
+               THEN EXTRACT(DAY FROM (NOW() - r.shipped_at))
+               ELSE NULL
+             END as days_out
+      FROM rmas r
+      LEFT JOIN users u ON r.created_by = u.id
+      ${whereClause}
+      ORDER BY r.created_at DESC
+    `, params);
+
+    // Get summary stats
+    const summary = await query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending,
+        COUNT(*) FILTER (WHERE status = 'approved') as approved,
+        COUNT(*) FILTER (WHERE status = 'shipped') as shipped,
+        COUNT(*) FILTER (WHERE status = 'received') as received,
+        COUNT(*) FILTER (WHERE status = 'complete') as complete,
+        AVG(CASE
+          WHEN shipped_at IS NOT NULL AND received_at IS NOT NULL
+          THEN EXTRACT(DAY FROM (received_at - shipped_at))
+          ELSE NULL
+        END)::numeric(10,1) as avg_days_out
+      FROM rmas r
+      ${whereClause}
+    `, params);
+
+    // Get by contact summary
+    const byContact = await query(`
+      SELECT
+        contact_name,
+        COUNT(*) as count,
+        COUNT(*) FILTER (WHERE status = 'complete') as completed,
+        AVG(CASE
+          WHEN shipped_at IS NOT NULL AND received_at IS NOT NULL
+          THEN EXTRACT(DAY FROM (received_at - shipped_at))
+          ELSE NULL
+        END)::numeric(10,1) as avg_days_out
+      FROM rmas r
+      ${whereClause}
+      AND contact_name IS NOT NULL AND contact_name != ''
+      GROUP BY contact_name
+      ORDER BY count DESC
+      LIMIT 20
+    `, params);
+
+    res.json({
+      rmas: rmas.rows,
+      summary: summary.rows[0],
+      by_contact: byContact.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get RMA statistics
 router.get('/stats/summary', authenticate, async (req, res, next) => {
   try {
@@ -604,7 +762,6 @@ router.get('/stats/summary', authenticate, async (req, res, next) => {
         COUNT(*) FILTER (WHERE status = 'shipped') as shipped,
         COUNT(*) FILTER (WHERE status = 'received') as received,
         COUNT(*) FILTER (WHERE status = 'complete') as complete,
-        COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
         COUNT(*) as total
       FROM rmas
     `);

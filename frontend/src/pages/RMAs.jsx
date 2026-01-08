@@ -17,10 +17,12 @@ import {
   Clock,
   Truck,
   PackageCheck,
-  XCircle,
   Filter,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  Download,
+  Calendar
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -30,8 +32,7 @@ const STATUS_CONFIG = {
   approved: { label: 'Approved', icon: CheckCircle, color: 'text-primary-600 bg-primary-50 border-primary-200' },
   shipped: { label: 'Shipped', icon: Truck, color: 'text-accent-600 bg-accent-50 border-accent-200' },
   received: { label: 'Received', icon: PackageCheck, color: 'text-success-600 bg-success-50 border-success-200' },
-  complete: { label: 'Complete', icon: CheckCircle, color: 'text-success-600 bg-success-50 border-success-200' },
-  rejected: { label: 'Rejected', icon: XCircle, color: 'text-danger-600 bg-danger-50 border-danger-200' }
+  complete: { label: 'Complete', icon: CheckCircle, color: 'text-success-600 bg-success-50 border-success-200' }
 };
 
 function RMAs() {
@@ -52,7 +53,11 @@ function RMAs() {
     part_number: '',
     equipment_id: '',
     reason: '',
-    description: ''
+    description: '',
+    contact_name: '',
+    contact_email: '',
+    contact_phone: '',
+    manufacturer_rma_number: ''
   });
   const [analyzedImagePath, setAnalyzedImagePath] = useState(null);
   const [equipmentSearch, setEquipmentSearch] = useState('');
@@ -63,6 +68,18 @@ function RMAs() {
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupSuggestions, setLookupSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [contactSuggestions, setContactSuggestions] = useState([]);
+  const [showContactSuggestions, setShowContactSuggestions] = useState(false);
+  const [suggestedContact, setSuggestedContact] = useState(null);
+  const [showReports, setShowReports] = useState(false);
+  const [reportFilters, setReportFilters] = useState({
+    start_date: '',
+    end_date: '',
+    status: '',
+    contact_name: ''
+  });
+  const [reportData, setReportData] = useState(null);
+  const [loadingReport, setLoadingReport] = useState(false);
 
   const canEdit = user?.role === 'admin' || user?.role === 'technician';
 
@@ -123,7 +140,11 @@ function RMAs() {
       part_number: '',
       equipment_id: '',
       reason: '',
-      description: ''
+      description: '',
+      contact_name: '',
+      contact_email: '',
+      contact_phone: '',
+      manufacturer_rma_number: ''
     });
     setAnalysisResult(null);
     setPreviewImage(null);
@@ -131,6 +152,9 @@ function RMAs() {
     setEquipmentSearch('');
     setEquipmentSuggestions([]);
     setSelectedEquipment(null);
+    setContactSuggestions([]);
+    setShowContactSuggestions(false);
+    setSuggestedContact(null);
   };
 
   const handleEquipmentSearch = async (value) => {
@@ -299,6 +323,101 @@ function RMAs() {
     toast.success(`Selected: ${suggestion.item_name}`);
   };
 
+  // Check for suggested contact when part number changes
+  const checkPartNumberContact = async (partNumber) => {
+    if (!partNumber || partNumber.length < 2) {
+      setSuggestedContact(null);
+      return;
+    }
+
+    try {
+      const response = await rmasApi.getContacts({ part_number: partNumber });
+      if (response.data.suggested_contact) {
+        setSuggestedContact(response.data.suggested_contact);
+      } else {
+        setSuggestedContact(null);
+      }
+    } catch (error) {
+      console.error('Failed to check contact:', error);
+    }
+  };
+
+  // Search for contacts as user types
+  const handleContactSearch = async (value) => {
+    setFormData(prev => ({ ...prev, contact_name: value }));
+    setShowContactSuggestions(true);
+
+    if (value.length < 2) {
+      setContactSuggestions([]);
+      return;
+    }
+
+    try {
+      const response = await rmasApi.getContacts({ search: value });
+      setContactSuggestions(response.data.contacts || []);
+    } catch (error) {
+      console.error('Failed to search contacts:', error);
+      setContactSuggestions([]);
+    }
+  };
+
+  const selectContact = (contact) => {
+    setFormData(prev => ({
+      ...prev,
+      contact_name: contact.contact_name || '',
+      contact_email: contact.contact_email || '',
+      contact_phone: contact.contact_phone || ''
+    }));
+    setShowContactSuggestions(false);
+    setContactSuggestions([]);
+    setSuggestedContact(null);
+  };
+
+  const runReport = async () => {
+    setLoadingReport(true);
+    try {
+      const params = {};
+      if (reportFilters.start_date) params.start_date = reportFilters.start_date;
+      if (reportFilters.end_date) params.end_date = reportFilters.end_date;
+      if (reportFilters.status) params.status = reportFilters.status;
+      if (reportFilters.contact_name) params.contact_name = reportFilters.contact_name;
+
+      const response = await rmasApi.getReports(params);
+      setReportData(response.data);
+    } catch (error) {
+      toast.error('Failed to generate report');
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
+  const exportCSV = () => {
+    if (!reportData?.rmas) return;
+
+    const headers = ['RMA #', 'Item Name', 'Part Number', 'Serial Number', 'Status', 'Contact', 'Days Out', 'Created', 'Shipped', 'Received'];
+    const rows = reportData.rmas.map(r => [
+      r.rma_number,
+      r.item_name,
+      r.part_number || '',
+      r.serial_number || '',
+      r.status,
+      r.contact_name || '',
+      r.days_out || '',
+      new Date(r.created_at).toLocaleDateString(),
+      r.shipped_at ? new Date(r.shipped_at).toLocaleDateString() : '',
+      r.received_at ? new Date(r.received_at).toLocaleDateString() : ''
+    ]);
+
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rma-report-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const data = { ...formData };
@@ -314,15 +433,24 @@ function RMAs() {
           <h1 className="page-title">RMA Tracking</h1>
           <p className="page-subtitle">Manage return merchandise authorizations</p>
         </div>
-        {canEdit && (
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowForm(true)}
-            className="btn btn-primary flex items-center gap-2"
+            onClick={() => setShowReports(true)}
+            className="btn btn-secondary flex items-center gap-2"
           >
-            <Plus className="w-5 h-5" />
-            New RMA
+            <FileText className="w-5 h-5" />
+            Reports
           </button>
-        )}
+          {canEdit && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              New RMA
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -569,7 +697,10 @@ function RMAs() {
                     <input
                       type="text"
                       value={formData.part_number}
-                      onChange={(e) => setFormData({ ...formData, part_number: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, part_number: e.target.value });
+                        checkPartNumberContact(e.target.value);
+                      }}
                       className="input font-mono flex-1"
                       placeholder="P/N"
                     />
@@ -669,6 +800,98 @@ function RMAs() {
                     className="input"
                     rows={3}
                     placeholder="Detailed description of the issue..."
+                  />
+                </div>
+
+                {/* Contact Section */}
+                <div className="md:col-span-2 border-t border-dark-200 pt-4 mt-2">
+                  <h3 className="text-sm font-semibold text-dark-700 mb-3">RMA Contact Information</h3>
+
+                  {/* Suggested Contact Banner */}
+                  {suggestedContact && !formData.contact_name && (
+                    <div className="mb-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                      <p className="text-sm text-primary-700 mb-2">
+                        <Sparkles className="w-4 h-4 inline mr-1" />
+                        Previous contact found for this part number:
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => selectContact(suggestedContact)}
+                        className="w-full text-left p-2 bg-white rounded border border-primary-200 hover:border-primary-400 transition-colors"
+                      >
+                        <span className="font-medium text-dark-900">{suggestedContact.contact_name}</span>
+                        {suggestedContact.contact_email && (
+                          <span className="text-dark-500 ml-2">{suggestedContact.contact_email}</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="relative">
+                      <label className="label">Contact Name</label>
+                      <input
+                        type="text"
+                        value={formData.contact_name}
+                        onChange={(e) => handleContactSearch(e.target.value)}
+                        onFocus={() => formData.contact_name.length >= 2 && setShowContactSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowContactSuggestions(false), 200)}
+                        className="input"
+                        placeholder="Contact name"
+                      />
+                      {showContactSuggestions && contactSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-dark-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {contactSuggestions.map((contact, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => selectContact(contact)}
+                              className="w-full px-3 py-2 text-left hover:bg-dark-50 border-b border-dark-100 last:border-0"
+                            >
+                              <div className="font-medium text-dark-900">{contact.contact_name}</div>
+                              <div className="text-xs text-dark-500">
+                                {contact.contact_email}
+                                {contact.rma_count && <span className="ml-2">({contact.rma_count} RMAs)</span>}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="label">Email</label>
+                      <input
+                        type="email"
+                        value={formData.contact_email}
+                        onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                        className="input"
+                        placeholder="email@example.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="label">Phone</label>
+                      <input
+                        type="tel"
+                        value={formData.contact_phone}
+                        onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                        className="input"
+                        placeholder="Phone number"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manufacturer RMA Number */}
+                <div className="md:col-span-2">
+                  <label className="label">Manufacturer RMA #</label>
+                  <input
+                    type="text"
+                    value={formData.manufacturer_rma_number}
+                    onChange={(e) => setFormData({ ...formData, manufacturer_rma_number: e.target.value })}
+                    className="input font-mono"
+                    placeholder="RMA number from manufacturer (if available)"
                   />
                 </div>
               </div>
@@ -776,6 +999,203 @@ function RMAs() {
                 className="btn btn-secondary"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reports Modal */}
+      {showReports && (
+        <div className="modal-overlay" onClick={() => setShowReports(false)}>
+          <div className="modal-content max-w-4xl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary-600" />
+                RMA Reports
+              </h2>
+              <button onClick={() => setShowReports(false)} className="btn-icon">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Filters */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                  <label className="label">Start Date</label>
+                  <input
+                    type="date"
+                    value={reportFilters.start_date}
+                    onChange={(e) => setReportFilters({ ...reportFilters, start_date: e.target.value })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">End Date</label>
+                  <input
+                    type="date"
+                    value={reportFilters.end_date}
+                    onChange={(e) => setReportFilters({ ...reportFilters, end_date: e.target.value })}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Status</label>
+                  <select
+                    value={reportFilters.status}
+                    onChange={(e) => setReportFilters({ ...reportFilters, status: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">All Statuses</option>
+                    {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                      <option key={status} value={status}>{config.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Contact</label>
+                  <input
+                    type="text"
+                    value={reportFilters.contact_name}
+                    onChange={(e) => setReportFilters({ ...reportFilters, contact_name: e.target.value })}
+                    className="input"
+                    placeholder="Filter by contact"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mb-6">
+                <button
+                  onClick={runReport}
+                  disabled={loadingReport}
+                  className="btn btn-primary flex items-center gap-2"
+                >
+                  {loadingReport ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Calendar className="w-4 h-4" />
+                  )}
+                  Generate Report
+                </button>
+                {reportData && (
+                  <button
+                    onClick={exportCSV}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export CSV
+                  </button>
+                )}
+              </div>
+
+              {/* Report Results */}
+              {reportData && (
+                <div className="space-y-6">
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-dark-50 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-dark-900">{reportData.summary?.total || 0}</p>
+                      <p className="text-sm text-dark-500">Total RMAs</p>
+                    </div>
+                    <div className="bg-warning-50 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-warning-700">
+                        {(parseInt(reportData.summary?.pending || 0) + parseInt(reportData.summary?.approved || 0) + parseInt(reportData.summary?.shipped || 0))}
+                      </p>
+                      <p className="text-sm text-dark-500">In Progress</p>
+                    </div>
+                    <div className="bg-success-50 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-success-700">{reportData.summary?.complete || 0}</p>
+                      <p className="text-sm text-dark-500">Completed</p>
+                    </div>
+                    <div className="bg-primary-50 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-primary-700">{reportData.summary?.avg_days_out || '-'}</p>
+                      <p className="text-sm text-dark-500">Avg Days Out</p>
+                    </div>
+                  </div>
+
+                  {/* By Contact */}
+                  {reportData.by_contact?.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-dark-900 mb-3">By Contact</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-dark-200">
+                              <th className="text-left py-2 px-3">Contact</th>
+                              <th className="text-center py-2 px-3">Total</th>
+                              <th className="text-center py-2 px-3">Completed</th>
+                              <th className="text-center py-2 px-3">Avg Days</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportData.by_contact.map((c, idx) => (
+                              <tr key={idx} className="border-b border-dark-100">
+                                <td className="py-2 px-3 font-medium">{c.contact_name}</td>
+                                <td className="text-center py-2 px-3">{c.count}</td>
+                                <td className="text-center py-2 px-3">{c.completed}</td>
+                                <td className="text-center py-2 px-3">{c.avg_days_out || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* RMA List */}
+                  <div>
+                    <h4 className="font-semibold text-dark-900 mb-3">
+                      RMA Details ({reportData.rmas?.length || 0} records)
+                    </h4>
+                    <div className="overflow-x-auto max-h-64">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-white">
+                          <tr className="border-b border-dark-200">
+                            <th className="text-left py-2 px-2">RMA #</th>
+                            <th className="text-left py-2 px-2">Item</th>
+                            <th className="text-left py-2 px-2">Status</th>
+                            <th className="text-left py-2 px-2">Contact</th>
+                            <th className="text-center py-2 px-2">Days Out</th>
+                            <th className="text-left py-2 px-2">Created</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reportData.rmas?.map((r, idx) => (
+                            <tr key={idx} className="border-b border-dark-100 hover:bg-dark-50">
+                              <td className="py-2 px-2 font-mono text-primary-600">{r.rma_number}</td>
+                              <td className="py-2 px-2">{r.item_name}</td>
+                              <td className="py-2 px-2">
+                                <span className={clsx('badge', STATUS_CONFIG[r.status]?.color)}>
+                                  {STATUS_CONFIG[r.status]?.label || r.status}
+                                </span>
+                              </td>
+                              <td className="py-2 px-2">{r.contact_name || '-'}</td>
+                              <td className="text-center py-2 px-2">{r.days_out || '-'}</td>
+                              <td className="py-2 px-2">{new Date(r.created_at).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!reportData && (
+                <div className="text-center py-12 text-dark-500">
+                  <FileText className="w-12 h-12 mx-auto mb-3 text-dark-300" />
+                  <p>Set filters and click "Generate Report" to view RMA data</p>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button
+                onClick={() => setShowReports(false)}
+                className="btn btn-secondary"
+              >
+                Close
               </button>
             </div>
           </div>
