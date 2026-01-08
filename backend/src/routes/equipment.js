@@ -8,6 +8,7 @@ const fs = require('fs');
 const { query } = require('../config/database');
 const { authenticate, isTechnician, isViewer, isAdmin } = require('../middleware/auth');
 const { suggestColumnMappings, searchEquipmentManual, matchManualToEquipment } = require('../services/claudeService');
+const { fetchEquipmentImage } = require('../services/imageService');
 
 // Configure multer for Excel file uploads
 const storage = multer.diskStorage({
@@ -808,6 +809,199 @@ router.get('/without-manuals/list', authenticate, isViewer, async (req, res, nex
     res.json({
       equipment: result.rows,
       total: result.rows.length
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Fetch image for single equipment
+router.post('/:id/fetch-image', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const equipmentResult = await query(
+      'SELECT * FROM equipment WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (equipmentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Equipment not found' });
+    }
+
+    const equipment = equipmentResult.rows[0];
+
+    // Check if another equipment with same model already has an image
+    if (equipment.model && equipment.manufacturer) {
+      const existingImage = await query(
+        `SELECT image_path FROM equipment
+         WHERE manufacturer = $1 AND model = $2 AND image_path IS NOT NULL
+         LIMIT 1`,
+        [equipment.manufacturer, equipment.model]
+      );
+
+      if (existingImage.rows.length > 0) {
+        // Reuse existing image
+        await query(
+          'UPDATE equipment SET image_path = $1 WHERE id = $2',
+          [existingImage.rows[0].image_path, req.params.id]
+        );
+
+        return res.json({
+          success: true,
+          image_path: existingImage.rows[0].image_path,
+          reused: true
+        });
+      }
+    }
+
+    // Fetch new image
+    const uploadDir = path.join(__dirname, '../../uploads/equipment');
+    const result = await fetchEquipmentImage(
+      equipment.manufacturer,
+      equipment.model,
+      equipment.name,
+      uploadDir
+    );
+
+    if (!result.success) {
+      return res.status(404).json({
+        error: 'Could not find product image',
+        details: result.error
+      });
+    }
+
+    // Update equipment with image path
+    const imagePath = `/uploads/equipment/${result.filename}`;
+    await query(
+      'UPDATE equipment SET image_path = $1 WHERE id = $2',
+      [imagePath, req.params.id]
+    );
+
+    // Also update other equipment with same manufacturer/model
+    if (equipment.manufacturer && equipment.model) {
+      await query(
+        `UPDATE equipment SET image_path = $1
+         WHERE manufacturer = $2 AND model = $3 AND image_path IS NULL`,
+        [imagePath, equipment.manufacturer, equipment.model]
+      );
+    }
+
+    res.json({
+      success: true,
+      image_path: imagePath,
+      source: result.source,
+      reused: false
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bulk fetch images for equipment without images (efficient - groups by model)
+router.post('/fetch-images/bulk', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    // Get unique manufacturer/model combinations without images
+    const uniqueModels = await query(
+      `SELECT DISTINCT manufacturer, model,
+              (SELECT id FROM equipment e2 WHERE e2.manufacturer = e.manufacturer AND e2.model = e.model LIMIT 1) as sample_id,
+              (SELECT name FROM equipment e2 WHERE e2.manufacturer = e.manufacturer AND e2.model = e.model LIMIT 1) as sample_name,
+              COUNT(*) as equipment_count
+       FROM equipment e
+       WHERE is_active = true
+         AND image_path IS NULL
+         AND model IS NOT NULL
+         AND manufacturer IS NOT NULL
+       GROUP BY manufacturer, model
+       ORDER BY equipment_count DESC`
+    );
+
+    const results = {
+      processed: 0,
+      success: 0,
+      failed: 0,
+      skipped: 0,
+      details: []
+    };
+
+    const uploadDir = path.join(__dirname, '../../uploads/equipment');
+
+    for (const row of uniqueModels.rows) {
+      results.processed++;
+
+      try {
+        const fetchResult = await fetchEquipmentImage(
+          row.manufacturer,
+          row.model,
+          row.sample_name,
+          uploadDir
+        );
+
+        if (fetchResult.success) {
+          const imagePath = `/uploads/equipment/${fetchResult.filename}`;
+
+          // Update all equipment with this manufacturer/model
+          const updateResult = await query(
+            `UPDATE equipment SET image_path = $1
+             WHERE manufacturer = $2 AND model = $3 AND image_path IS NULL
+             RETURNING id`,
+            [imagePath, row.manufacturer, row.model]
+          );
+
+          results.success++;
+          results.details.push({
+            manufacturer: row.manufacturer,
+            model: row.model,
+            updated: updateResult.rows.length,
+            image_path: imagePath
+          });
+        } else {
+          results.failed++;
+          results.details.push({
+            manufacturer: row.manufacturer,
+            model: row.model,
+            error: fetchResult.error
+          });
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+      } catch (err) {
+        results.failed++;
+        results.details.push({
+          manufacturer: row.manufacturer,
+          model: row.model,
+          error: err.message
+        });
+      }
+    }
+
+    res.json(results);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get equipment without images
+router.get('/without-images/list', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT e.id, e.name, e.model, e.manufacturer, e.location
+       FROM equipment e
+       WHERE e.is_active = true AND e.image_path IS NULL
+       ORDER BY e.manufacturer, e.model, e.name`
+    );
+
+    // Also get unique model count
+    const uniqueCount = await query(
+      `SELECT COUNT(DISTINCT (manufacturer, model)) as unique_models
+       FROM equipment
+       WHERE is_active = true AND image_path IS NULL AND model IS NOT NULL`
+    );
+
+    res.json({
+      equipment: result.rows,
+      total: result.rows.length,
+      unique_models: parseInt(uniqueCount.rows[0].unique_models) || 0
     });
   } catch (error) {
     next(error);

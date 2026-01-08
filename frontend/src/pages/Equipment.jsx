@@ -33,7 +33,9 @@ import {
   Link2,
   Unlink,
   Globe,
-  Info
+  Info,
+  Image,
+  Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -82,6 +84,10 @@ function Equipment() {
   const [manualSuggestions, setManualSuggestions] = useState(null);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [showLinkManual, setShowLinkManual] = useState(false);
+
+  // Image management state
+  const [fetchingImage, setFetchingImage] = useState(false);
+  const [bulkFetchingImages, setBulkFetchingImages] = useState(false);
 
   const { data: equipmentData, isLoading } = useQuery({
     queryKey: ['equipment', page, search, sortBy, sortOrder],
@@ -371,6 +377,42 @@ function Equipment() {
     }
   };
 
+  // Image management functions
+  const handleFetchImage = async (equipmentId) => {
+    setFetchingImage(true);
+    try {
+      const response = await equipmentApi.fetchImage(equipmentId);
+      if (response.data.success) {
+        toast.success(response.data.reused ? 'Image linked from existing model' : 'Image fetched successfully');
+        // Refresh equipment details
+        const detailResponse = await equipmentApi.getOne(equipmentId);
+        setEquipmentDetails(detailResponse.data);
+        queryClient.invalidateQueries(['equipment']);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to fetch image');
+    } finally {
+      setFetchingImage(false);
+    }
+  };
+
+  const handleBulkFetchImages = async () => {
+    if (!confirm('This will fetch images for all equipment without images. This may take a while. Continue?')) return;
+    setBulkFetchingImages(true);
+    const toastId = toast.loading('Fetching images... This may take a few minutes');
+    try {
+      const response = await equipmentApi.fetchImagesBulk();
+      toast.dismiss(toastId);
+      toast.success(`Fetched ${response.data.success} images, ${response.data.failed} failed`);
+      queryClient.invalidateQueries(['equipment']);
+    } catch (error) {
+      toast.dismiss(toastId);
+      toast.error('Bulk image fetch failed');
+    } finally {
+      setBulkFetchingImages(false);
+    }
+  };
+
   const handleEdit = (eq) => {
     setFormData({
       name: eq.name || '',
@@ -407,6 +449,19 @@ function Equipment() {
         </div>
         {canEdit && (
           <div className="flex gap-2">
+            <button
+              onClick={handleBulkFetchImages}
+              disabled={bulkFetchingImages}
+              className="btn btn-secondary flex items-center gap-2"
+              title="Fetch product images for all equipment"
+            >
+              {bulkFetchingImages ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Image className="w-5 h-5" />
+              )}
+              {bulkFetchingImages ? 'Fetching...' : 'Fetch Images'}
+            </button>
             <button
               onClick={() => setShowImport(true)}
               className="btn btn-secondary flex items-center gap-2"
@@ -476,21 +531,31 @@ function Equipment() {
           {equipmentData?.equipment?.map((eq) => (
             <div
               key={eq.id}
-              className="card hover:shadow-md transition-shadow cursor-pointer group"
+              className="card hover:shadow-md transition-shadow cursor-pointer group overflow-hidden"
               onClick={() => handleViewDetails(eq)}
             >
+              {/* Equipment Image */}
+              {eq.image_path ? (
+                <div className="h-32 bg-gray-100 overflow-hidden">
+                  <img
+                    src={`/api${eq.image_path}`}
+                    alt={eq.name}
+                    className="w-full h-full object-contain"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </div>
+              ) : (
+                <div className="h-32 bg-gradient-to-br from-purple-50 to-purple-100 flex items-center justify-center">
+                  <Monitor className="w-12 h-12 text-purple-300" />
+                </div>
+              )}
               <div className="p-4">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                      <Monitor className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors truncate">
-                        {eq.name}
-                      </h3>
-                      <p className="text-sm text-gray-500">{eq.model || 'No model'}</p>
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors truncate">
+                      {eq.name}
+                    </h3>
+                    <p className="text-sm text-gray-500">{eq.model || 'No model'}</p>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowQR(eq); }}
@@ -705,16 +770,44 @@ function Equipment() {
       {selectedEquipment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-purple-100 rounded-lg">
-                  <Monitor className="w-6 h-6 text-purple-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold">{selectedEquipment.name}</h2>
-                  <p className="text-sm text-gray-500">{selectedEquipment.model || 'No model specified'}</p>
-                </div>
+            {/* Header with Image */}
+            <div className="flex items-start gap-4 px-6 py-4 border-b">
+              {/* Equipment Image or Placeholder */}
+              <div className="relative flex-shrink-0">
+                {equipmentDetails?.equipment?.image_path ? (
+                  <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden">
+                    <img
+                      src={`/api${equipmentDetails.equipment.image_path}`}
+                      alt={selectedEquipment.name}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <Monitor className="w-10 h-10 text-purple-400" />
+                  </div>
+                )}
+                {canEdit && !equipmentDetails?.equipment?.image_path && (
+                  <button
+                    onClick={() => handleFetchImage(selectedEquipment.id)}
+                    disabled={fetchingImage}
+                    className="absolute -bottom-2 -right-2 p-1.5 bg-primary-600 text-white rounded-full hover:bg-primary-700 shadow-lg"
+                    title="Fetch product image"
+                  >
+                    {fetchingImage ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-semibold">{selectedEquipment.name}</h2>
+                <p className="text-sm text-gray-500">{selectedEquipment.model || 'No model specified'}</p>
+                {selectedEquipment.manufacturer && (
+                  <p className="text-sm text-gray-400">{selectedEquipment.manufacturer}</p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button

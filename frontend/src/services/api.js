@@ -89,6 +89,10 @@ export const equipmentApi = {
   linkManual: (id, manual_id) => api.post(`/equipment/${id}/link-manual`, { manual_id }),
   unlinkManual: (id, manual_id) => api.post(`/equipment/${id}/unlink-manual`, { manual_id }),
   getWithoutManuals: () => api.get('/equipment/without-manuals/list'),
+  // Image management
+  fetchImage: (id) => api.post(`/equipment/${id}/fetch-image`),
+  fetchImagesBulk: () => api.post('/equipment/fetch-images/bulk'),
+  getWithoutImages: () => api.get('/equipment/without-images/list'),
 };
 
 export const categoriesApi = {
