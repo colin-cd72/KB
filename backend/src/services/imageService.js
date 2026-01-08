@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const Anthropic = require('@anthropic-ai/sdk');
+const { captureProductImage } = require('./screenshotService');
 
 let client = null;
 
@@ -193,29 +194,49 @@ async function downloadImage(imageUrl, destinationDir) {
 }
 
 /**
- * Fetch product image for equipment - searches and downloads
+ * Fetch product image for equipment - tries direct download first, then screenshot
  */
 async function fetchEquipmentImage(manufacturer, model, productName, uploadDir) {
+  // Method 1: Try direct image download
   try {
-    // First, find the image URL
     const searchResult = await findProductImageUrl(manufacturer, model, productName);
 
-    if (!searchResult.found || !searchResult.image_url) {
+    if (searchResult.found && searchResult.image_url) {
+      try {
+        const downloadResult = await downloadImage(searchResult.image_url, uploadDir);
+        return {
+          success: true,
+          filename: downloadResult.filename,
+          filepath: downloadResult.filepath,
+          source: searchResult.source,
+          original_url: searchResult.image_url,
+          method: 'direct_download'
+        };
+      } catch (downloadError) {
+        console.log('Direct download failed, trying screenshot:', downloadError.message);
+      }
+    }
+  } catch (error) {
+    console.log('Image URL search failed, trying screenshot:', error.message);
+  }
+
+  // Method 2: Try screenshot capture
+  try {
+    const screenshotResult = await captureProductImage(manufacturer, model, productName, uploadDir);
+
+    if (screenshotResult.success) {
       return {
-        success: false,
-        error: searchResult.error || 'No image URL found'
+        success: true,
+        filename: screenshotResult.filename,
+        filepath: screenshotResult.filepath,
+        source: screenshotResult.source_url,
+        method: 'screenshot'
       };
     }
 
-    // Download the image
-    const downloadResult = await downloadImage(searchResult.image_url, uploadDir);
-
     return {
-      success: true,
-      filename: downloadResult.filename,
-      filepath: downloadResult.filepath,
-      source: searchResult.source,
-      original_url: searchResult.image_url
+      success: false,
+      error: screenshotResult.error || 'Both download and screenshot failed'
     };
   } catch (error) {
     console.error('Fetch equipment image error:', error);
