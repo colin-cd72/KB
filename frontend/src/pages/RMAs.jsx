@@ -580,7 +580,7 @@ function RMAs() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="modal-body space-y-5">
+            <form onSubmit={handleSubmit} className="modal-body space-y-5 max-h-[70vh] overflow-y-auto">
               {/* Part Photo */}
               <div>
                 <label className="label flex items-center gap-2">
