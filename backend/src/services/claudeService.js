@@ -489,6 +489,78 @@ Keep your response under 300 words.`;
   }
 }
 
+/**
+ * Analyze an image attached to an issue for troubleshooting
+ */
+async function analyzeIssueImage(base64Image, mimeType, issueTitle, issueDescription, additionalContext = '') {
+  const anthropic = getClient();
+  if (!anthropic) {
+    throw new Error('Claude API key not configured');
+  }
+
+  try {
+    const systemPrompt = `You are an expert broadcast engineering diagnostic assistant specializing in professional AV equipment analysis. You're analyzing an image attached to a support issue.
+
+Your expertise includes:
+- Ross Video equipment (Carbonite, Ultrix, XPression, openGear)
+- Novastar LED controllers and processors
+- LED panels and video walls
+- Brompton Tessera processors
+- Blackmagic Design (ATEM, HyperDeck, converters)
+- AJA converters and routers
+- Tektronix waveform monitors and scopes
+- Panasonic broadcast projectors
+- Arista network switches
+- SDI signals, fiber connections, video waveforms
+- Error messages, status LEDs, and diagnostic screens
+
+When analyzing images:
+1. Identify the equipment, display, or issue shown
+2. Note any error messages, warning lights, or abnormal indicators
+3. Analyze signal displays, waveforms, or diagnostic information if visible
+4. Identify potential causes based on visual evidence
+5. Suggest specific troubleshooting steps
+6. Reference relevant settings or menu paths when applicable
+
+Be specific and technical in your analysis. If you can identify the exact equipment model, mention it.`;
+
+    let userContent = [
+      {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: mimeType,
+          data: base64Image
+        }
+      },
+      {
+        type: 'text',
+        text: `Please analyze this image in the context of the following issue:
+
+Issue Title: ${issueTitle}
+Issue Description: ${issueDescription}
+${additionalContext ? `\nAdditional Context: ${additionalContext}` : ''}
+
+What do you see in the image? What might be causing the problem? What troubleshooting steps would you recommend based on this visual evidence?`
+      }
+    ];
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: userContent }
+      ]
+    });
+
+    return response.content[0].text;
+  } catch (error) {
+    console.error('Image analysis error:', error);
+    throw new Error('Failed to analyze image');
+  }
+}
+
 module.exports = {
   searchAssistant,
   suggestCategory,
@@ -497,5 +569,6 @@ module.exports = {
   suggestRelatedIssues,
   suggestColumnMappings,
   suggestSolution,
-  continueSolutionConversation
+  continueSolutionConversation,
+  analyzeIssueImage
 };

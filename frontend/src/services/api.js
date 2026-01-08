@@ -41,6 +41,12 @@ export const issuesApi = {
   getHistory: (id) => api.get(`/issues/${id}/history`),
   watch: (id) => api.post(`/issues/${id}/watch`),
   updateAIConversation: (id, ai_conversation) => api.put(`/issues/${id}/ai-conversation`, { ai_conversation }),
+  getAttachments: (id) => api.get(`/issues/${id}/attachments`),
+  uploadImage: (id, formData) => api.post(`/issues/${id}/images`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  analyzeImage: (id, image_path, context) => api.post(`/issues/${id}/analyze-image`, { image_path, context }),
+  deleteAttachment: (id, attachmentId) => api.delete(`/issues/${id}/attachments/${attachmentId}`),
 };
 
 export const solutionsApi = {

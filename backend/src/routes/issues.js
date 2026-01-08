@@ -1,7 +1,41 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs').promises;
 const { query, transaction } = require('../config/database');
 const { authenticate, isTechnician, isViewer } = require('../middleware/auth');
+const claudeService = require('../services/claudeService');
+
+// Configure multer for issue image uploads
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/issues');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 const router = express.Router();
 
@@ -390,6 +424,129 @@ router.put('/:id/ai-conversation', authenticate, isViewer, async (req, res, next
     }
 
     res.json({ ai_conversation: result.rows[0].ai_conversation });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get attachments for an issue
+router.get('/:id/attachments', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT a.*, u.name as uploaded_by_name
+       FROM attachments a
+       LEFT JOIN users u ON a.uploaded_by = u.id
+       WHERE a.issue_id = $1
+       ORDER BY a.created_at DESC`,
+      [req.params.id]
+    );
+
+    res.json({ attachments: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Upload image to issue
+router.post('/:id/images', authenticate, isTechnician, upload.single('image'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    // Verify issue exists
+    const issueCheck = await query('SELECT id FROM issues WHERE id = $1', [req.params.id]);
+    if (issueCheck.rows.length === 0) {
+      // Delete uploaded file
+      await fs.unlink(req.file.path).catch(() => {});
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    const filePath = `/uploads/issues/${req.file.filename}`;
+
+    const result = await query(
+      `INSERT INTO attachments (issue_id, file_path, file_name, file_type, file_size, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [req.params.id, filePath, req.file.originalname, req.file.mimetype, req.file.size, req.user.id]
+    );
+
+    res.status(201).json({ attachment: result.rows[0] });
+  } catch (error) {
+    // Clean up file on error
+    if (req.file) {
+      await fs.unlink(req.file.path).catch(() => {});
+    }
+    next(error);
+  }
+});
+
+// Analyze image with AI
+router.post('/:id/analyze-image', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const { image_path, context } = req.body;
+
+    if (!image_path) {
+      return res.status(400).json({ error: 'image_path is required' });
+    }
+
+    // Get issue context
+    const issueResult = await query(
+      'SELECT title, description FROM issues WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (issueResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    const issue = issueResult.rows[0];
+
+    // Read the image file
+    const fullPath = path.join(__dirname, '../../', image_path);
+    const imageBuffer = await fs.readFile(fullPath);
+    const base64Image = imageBuffer.toString('base64');
+    const mimeType = image_path.endsWith('.png') ? 'image/png' :
+                     image_path.endsWith('.gif') ? 'image/gif' :
+                     image_path.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+
+    // Call Claude to analyze the image
+    const analysis = await claudeService.analyzeIssueImage(
+      base64Image,
+      mimeType,
+      issue.title,
+      issue.description,
+      context
+    );
+
+    res.json({ analysis });
+  } catch (error) {
+    console.error('Image analysis error:', error);
+    next(error);
+  }
+});
+
+// Delete attachment
+router.delete('/:id/attachments/:attachmentId', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    // Get attachment to delete file
+    const attachment = await query(
+      'SELECT * FROM attachments WHERE id = $1 AND issue_id = $2',
+      [req.params.attachmentId, req.params.id]
+    );
+
+    if (attachment.rows.length === 0) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    // Delete from database
+    await query('DELETE FROM attachments WHERE id = $1', [req.params.attachmentId]);
+
+    // Delete file from disk
+    const filePath = path.join(__dirname, '../../', attachment.rows[0].file_path);
+    await fs.unlink(filePath).catch(() => {});
+
+    res.json({ message: 'Attachment deleted' });
   } catch (error) {
     next(error);
   }

@@ -17,7 +17,11 @@ import {
   Plus,
   Bot,
   Loader2,
-  MessageCircle
+  MessageCircle,
+  Camera,
+  Image,
+  X,
+  Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -36,6 +40,12 @@ function IssueDetail() {
   const [userAnswer, setUserAnswer] = useState('');
   const [sendingAnswer, setSendingAnswer] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
+
+  // Image state
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [analyzingImage, setAnalyzingImage] = useState(null);
+  const [imageAnalysis, setImageAnalysis] = useState({});
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const { data: issue, isLoading } = useQuery({
     queryKey: ['issue', id],
@@ -67,6 +77,14 @@ function IssueDetail() {
     queryFn: async () => {
       const response = await categoriesApi.getAll();
       return response.data.flat;
+    },
+  });
+
+  const { data: attachments, refetch: refetchAttachments } = useQuery({
+    queryKey: ['attachments', id],
+    queryFn: async () => {
+      const response = await issuesApi.getAttachments(id);
+      return response.data.attachments;
     },
   });
 
@@ -192,6 +210,58 @@ function IssueDetail() {
     }
   };
 
+  // Handle image upload
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      await issuesApi.uploadImage(id, formData);
+      refetchAttachments();
+      toast.success('Image uploaded');
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
+  // Analyze image with AI
+  const handleAnalyzeImage = async (attachment) => {
+    setAnalyzingImage(attachment.id);
+    try {
+      const response = await issuesApi.analyzeImage(id, attachment.file_path);
+      setImageAnalysis(prev => ({
+        ...prev,
+        [attachment.id]: response.data.analysis
+      }));
+    } catch (error) {
+      console.error('Failed to analyze image:', error);
+      toast.error('Failed to analyze image');
+    } finally {
+      setAnalyzingImage(null);
+    }
+  };
+
+  // Delete attachment
+  const handleDeleteAttachment = async (attachmentId) => {
+    if (!confirm('Delete this image?')) return;
+    try {
+      await issuesApi.deleteAttachment(id, attachmentId);
+      refetchAttachments();
+      toast.success('Image deleted');
+    } catch (error) {
+      console.error('Failed to delete image:', error);
+      toast.error('Failed to delete image');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -271,6 +341,131 @@ function IssueDetail() {
               {issue.description}
             </div>
           </div>
+
+          {/* Images */}
+          <div className="card">
+            <div className="px-6 py-4 border-b flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Camera className="w-5 h-5" />
+                Images ({attachments?.length || 0})
+              </h2>
+              {canEdit && (
+                <label className="btn btn-secondary text-sm cursor-pointer">
+                  {uploadingImage ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Image
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    disabled={uploadingImage}
+                  />
+                </label>
+              )}
+            </div>
+
+            {attachments?.length > 0 ? (
+              <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+                {attachments.map((attachment) => (
+                  <div key={attachment.id} className="relative group">
+                    <img
+                      src={`/api${attachment.file_path}`}
+                      alt={attachment.file_name}
+                      className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90"
+                      onClick={() => setSelectedImage(attachment)}
+                    />
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <button
+                        onClick={() => handleAnalyzeImage(attachment)}
+                        disabled={analyzingImage === attachment.id}
+                        className="p-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                        title="Analyze with AI"
+                      >
+                        {analyzingImage === attachment.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => handleDeleteAttachment(attachment.id)}
+                          className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                          title="Delete"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {imageAnalysis[attachment.id] && (
+                      <div className="mt-2 p-3 bg-primary-50 rounded-lg border border-primary-200">
+                        <div className="flex items-center gap-1 text-xs font-medium text-primary-700 mb-1">
+                          <Sparkles className="w-3 h-3" />
+                          AI Analysis
+                        </div>
+                        <p className="text-xs text-gray-700 whitespace-pre-wrap">
+                          {imageAnalysis[attachment.id]}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-gray-500">
+                <Image className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">No images attached</p>
+                {canEdit && (
+                  <p className="text-xs mt-1">Upload images to help diagnose the issue</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Image Modal */}
+          {selectedImage && (
+            <div
+              className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+              onClick={() => setSelectedImage(null)}
+            >
+              <div className="relative max-w-4xl max-h-[90vh]">
+                <img
+                  src={`/api${selectedImage.file_path}`}
+                  alt={selectedImage.file_name}
+                  className="max-w-full max-h-[90vh] object-contain rounded-lg"
+                />
+                <button
+                  onClick={() => setSelectedImage(null)}
+                  className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="absolute bottom-2 left-2 right-2 flex gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAnalyzeImage(selectedImage);
+                    }}
+                    disabled={analyzingImage === selectedImage.id}
+                    className="btn btn-primary text-sm"
+                  >
+                    {analyzingImage === selectedImage.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                    ) : (
+                      <Sparkles className="w-4 h-4 mr-1" />
+                    )}
+                    Analyze with AI
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Solutions */}
           <div className="card">
