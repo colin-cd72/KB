@@ -321,78 +321,76 @@ function RMAs() {
             </div>
 
             <form onSubmit={handleSubmit} className="modal-body space-y-5">
-              {/* AI Image Analysis */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-primary-50 to-accent-50 border border-primary-100">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-dark-900">AI Image Analysis</h3>
-                    <p className="text-sm text-dark-500">Upload a photo to auto-detect part info</p>
-                  </div>
-                </div>
+              {/* Part Photo */}
+              <div>
+                <label className="label flex items-center gap-2">
+                  <Camera className="w-4 h-4" />
+                  Part Photo
+                </label>
+                <div className="p-4 rounded-xl bg-dark-50 border border-dark-200">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-
-                {previewImage ? (
-                  <div className="relative">
-                    <img
-                      src={previewImage}
-                      alt="Preview"
-                      className="w-full h-48 object-cover rounded-lg"
-                    />
-                    {analyzing && (
-                      <div className="absolute inset-0 bg-dark-900/50 rounded-lg flex items-center justify-center">
-                        <div className="text-center text-white">
-                          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-                          <p className="text-sm">Analyzing image...</p>
+                  {previewImage ? (
+                    <div className="relative">
+                      <img
+                        src={previewImage}
+                        alt="Preview"
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                      {analyzing && (
+                        <div className="absolute inset-0 bg-dark-900/50 rounded-lg flex items-center justify-center">
+                          <div className="text-center text-white">
+                            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                            <p className="text-sm">Analyzing with AI...</p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreviewImage(null);
+                          setAnalysisResult(null);
+                          setAnalyzedImagePath(null);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-dark-900/70 rounded-full text-white hover:bg-dark-900"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => {
-                        setPreviewImage(null);
-                        setAnalysisResult(null);
-                      }}
-                      className="absolute top-2 right-2 p-1 bg-dark-900/50 rounded-full text-white hover:bg-dark-900/70"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-8 border-2 border-dashed border-dark-300 rounded-xl hover:border-primary-500 hover:bg-white transition-colors"
                     >
-                      <X className="w-4 h-4" />
+                      <Camera className="w-10 h-10 mx-auto mb-2 text-dark-400" />
+                      <p className="text-sm font-medium text-dark-700">Click to upload part photo</p>
+                      <p className="text-xs text-dark-500 mt-1">AI will auto-detect part info</p>
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-8 border-2 border-dashed border-primary-300 rounded-xl hover:border-primary-500 hover:bg-primary-50/50 transition-colors"
-                  >
-                    <Upload className="w-8 h-8 mx-auto mb-2 text-primary-500" />
-                    <p className="text-sm text-primary-700">Click to upload or drag and drop</p>
-                  </button>
-                )}
+                  )}
 
-                {analysisResult && (
-                  <div className="mt-3 p-3 bg-white rounded-lg border border-primary-100">
-                    <p className="text-sm font-medium text-success-600 flex items-center gap-1 mb-2">
-                      <CheckCircle className="w-4 h-4" />
-                      AI detected information (auto-filled)
-                    </p>
-                    <div className="text-sm text-dark-600 space-y-1">
-                      {analysisResult.item_name && <p>Item: {analysisResult.item_name}</p>}
-                      {analysisResult.serial_number && <p>Serial: {analysisResult.serial_number}</p>}
-                      {analysisResult.part_number && <p>Part #: {analysisResult.part_number}</p>}
-                      {analysisResult.manufacturer && <p>Manufacturer: {analysisResult.manufacturer}</p>}
-                      {analysisResult.condition && <p>Condition: {analysisResult.condition}</p>}
+                  {analysisResult && (
+                    <div className="mt-3 p-3 bg-gradient-to-br from-primary-50 to-accent-50 rounded-lg border border-primary-100">
+                      <p className="text-sm font-medium text-primary-700 flex items-center gap-1 mb-2">
+                        <Sparkles className="w-4 h-4" />
+                        AI detected information (auto-filled)
+                      </p>
+                      <div className="text-sm text-dark-600 space-y-1">
+                        {analysisResult.item_name && <p>Item: {analysisResult.item_name}</p>}
+                        {analysisResult.serial_number && <p>Serial: {analysisResult.serial_number}</p>}
+                        {analysisResult.part_number && <p>Part #: {analysisResult.part_number}</p>}
+                        {analysisResult.manufacturer && <p>Manufacturer: {analysisResult.manufacturer}</p>}
+                        {analysisResult.condition && <p>Condition: {analysisResult.condition}</p>}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Form Fields */}
