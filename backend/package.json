@@ -25,7 +25,9 @@
     "morgan": "^1.10.0",
     "express-rate-limit": "^7.1.5",
     "xlsx": "^0.18.5",
-    "puppeteer": "^21.6.1"
+    "puppeteer": "^21.6.1",
+    "nodemailer": "^6.9.8",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

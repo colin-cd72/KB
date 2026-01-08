@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '../store/authStore';
-import { settingsApi, categoriesApi } from '../services/api';
+import { settingsApi, categoriesApi, emailApi } from '../services/api';
 import {
   User,
   Lock,
@@ -21,7 +21,11 @@ import {
   Plus,
   Edit,
   Trash2,
-  X
+  X,
+  Mail,
+  Bell,
+  Send,
+  Server
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -61,6 +65,32 @@ function Settings() {
   const [newCategory, setNewCategory] = useState({ name: '', color: '#3B82F6', description: '' });
   const [showNewCategory, setShowNewCategory] = useState(false);
 
+  // Email Settings state (admin)
+  const [emailSettings, setEmailSettings] = useState({
+    smtp_host: '',
+    smtp_port: 587,
+    smtp_secure: false,
+    smtp_user: '',
+    smtp_pass: '',
+    from_email: '',
+    from_name: 'Knowledge Base',
+    enabled: false
+  });
+  const [emailSettingsLoading, setEmailSettingsLoading] = useState(false);
+  const [emailTesting, setEmailTesting] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+
+  // Email Preferences state (all users)
+  const [emailPrefs, setEmailPrefs] = useState({
+    notify_issue_assigned: true,
+    notify_issue_updated: true,
+    notify_issue_comment: true,
+    notify_rma_status: true,
+    notify_reminders: true,
+    notify_digest: false
+  });
+  const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
+
   const isAdmin = user?.role === 'admin';
 
   const profileForm = useForm({
@@ -93,6 +123,20 @@ function Settings() {
       loadCategories();
     }
   }, [isAdmin, activeTab]);
+
+  // Load email settings for admins
+  useEffect(() => {
+    if (isAdmin && activeTab === 'email') {
+      loadEmailSettings();
+    }
+  }, [isAdmin, activeTab]);
+
+  // Load email preferences for all users
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      loadEmailPrefs();
+    }
+  }, [activeTab]);
 
   const loadCategories = async () => {
     try {
@@ -164,6 +208,70 @@ function Settings() {
       console.error('Failed to load AI settings:', error);
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const loadEmailSettings = async () => {
+    try {
+      setEmailSettingsLoading(true);
+      const response = await emailApi.getSettings();
+      setEmailSettings(response.data);
+    } catch (error) {
+      console.error('Failed to load email settings:', error);
+    } finally {
+      setEmailSettingsLoading(false);
+    }
+  };
+
+  const loadEmailPrefs = async () => {
+    try {
+      setEmailPrefsLoading(true);
+      const response = await emailApi.getPreferences();
+      setEmailPrefs(response.data);
+    } catch (error) {
+      console.error('Failed to load email preferences:', error);
+    } finally {
+      setEmailPrefsLoading(false);
+    }
+  };
+
+  const handleSaveEmailSettings = async () => {
+    try {
+      setEmailSettingsLoading(true);
+      await emailApi.updateSettings(emailSettings);
+      toast.success('Email settings saved');
+    } catch (error) {
+      toast.error('Failed to save email settings');
+    } finally {
+      setEmailSettingsLoading(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!testEmail) {
+      toast.error('Please enter a test email address');
+      return;
+    }
+    try {
+      setEmailTesting(true);
+      await emailApi.testEmail(testEmail);
+      toast.success('Test email sent successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to send test email');
+    } finally {
+      setEmailTesting(false);
+    }
+  };
+
+  const handleSaveEmailPrefs = async () => {
+    try {
+      setEmailPrefsLoading(true);
+      await emailApi.updatePreferences(emailPrefs);
+      toast.success('Email preferences saved');
+    } catch (error) {
+      toast.error('Failed to save email preferences');
+    } finally {
+      setEmailPrefsLoading(false);
     }
   };
 
@@ -282,6 +390,32 @@ function Settings() {
               >
                 <Tag className="w-4 h-4" />
                 Categories
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={clsx(
+                'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                activeTab === 'notifications'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-dark-500 hover:text-dark-700'
+              )}
+            >
+              <Bell className="w-4 h-4" />
+              Notifications
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('email')}
+                className={clsx(
+                  'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                  activeTab === 'email'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-dark-500 hover:text-dark-700'
+                )}
+              >
+                <Mail className="w-4 h-4" />
+                Email Server
               </button>
             )}
             {isAdmin && (
@@ -617,6 +751,326 @@ function Settings() {
                         </div>
                       ))
                     )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Notifications Tab */}
+          {activeTab === 'notifications' && (
+            <div className="space-y-6">
+              {emailPrefsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+                </div>
+              ) : (
+                <>
+                  <div className="p-4 rounded-xl bg-primary-50 border border-primary-100">
+                    <p className="text-sm text-primary-700">
+                      Configure which email notifications you'd like to receive. Make sure you have a verified email address to receive notifications.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900">Issue Notifications</h3>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Issue Assigned</p>
+                        <p className="text-sm text-dark-500">When an issue is assigned to you</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.notify_issue_assigned}
+                        onChange={(e) => setEmailPrefs({ ...emailPrefs, notify_issue_assigned: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Issue Updated</p>
+                        <p className="text-sm text-dark-500">When an issue you're watching is updated</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.notify_issue_updated}
+                        onChange={(e) => setEmailPrefs({ ...emailPrefs, notify_issue_updated: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Issue Comments</p>
+                        <p className="text-sm text-dark-500">When someone comments on your issues</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.notify_issue_comment}
+                        onChange={(e) => setEmailPrefs({ ...emailPrefs, notify_issue_comment: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900">RMA Notifications</h3>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">RMA Status Changes</p>
+                        <p className="text-sm text-dark-500">When an RMA you created changes status</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.notify_rma_status}
+                        onChange={(e) => setEmailPrefs({ ...emailPrefs, notify_rma_status: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900">Other Notifications</h3>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Daily Reminders</p>
+                        <p className="text-sm text-dark-500">Receive daily reminders about pending tasks</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.notify_reminders}
+                        onChange={(e) => setEmailPrefs({ ...emailPrefs, notify_reminders: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Weekly Digest</p>
+                        <p className="text-sm text-dark-500">Receive a weekly summary of activity</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.notify_digest}
+                        onChange={(e) => setEmailPrefs({ ...emailPrefs, notify_digest: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      onClick={handleSaveEmailPrefs}
+                      disabled={emailPrefsLoading}
+                      className="btn btn-primary flex items-center gap-2"
+                    >
+                      {emailPrefsLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Save className="w-5 h-5" />
+                      )}
+                      Save Preferences
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Email Server Tab (Admin) */}
+          {activeTab === 'email' && isAdmin && (
+            <div className="space-y-6">
+              {emailSettingsLoading && !emailSettings.smtp_host ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+                </div>
+              ) : (
+                <>
+                  {/* Status Indicator */}
+                  <div className="p-4 rounded-xl bg-dark-50 border border-dark-100">
+                    <div className="flex items-center gap-3">
+                      <div className={clsx(
+                        'w-10 h-10 rounded-xl flex items-center justify-center',
+                        emailSettings.enabled
+                          ? 'bg-success-100 text-success-600'
+                          : 'bg-warning-100 text-warning-600'
+                      )}>
+                        {emailSettings.enabled ? (
+                          <CheckCircle className="w-5 h-5" />
+                        ) : (
+                          <AlertTriangle className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-dark-900">
+                          {emailSettings.enabled ? 'Email Enabled' : 'Email Disabled'}
+                        </p>
+                        <p className="text-sm text-dark-500">
+                          {emailSettings.enabled
+                            ? 'Email notifications are active'
+                            : 'Configure SMTP settings and enable to send emails'}
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={emailSettings.enabled}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, enabled: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-dark-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-dark-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* SMTP Settings */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Server className="w-4 h-4" />
+                      SMTP Configuration
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">SMTP Host</label>
+                        <input
+                          type="text"
+                          value={emailSettings.smtp_host}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtp_host: e.target.value })}
+                          className="input"
+                          placeholder="smtp.example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">SMTP Port</label>
+                        <input
+                          type="number"
+                          value={emailSettings.smtp_port}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtp_port: parseInt(e.target.value) || 587 })}
+                          className="input"
+                          placeholder="587"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">SMTP Username</label>
+                        <input
+                          type="text"
+                          value={emailSettings.smtp_user}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtp_user: e.target.value })}
+                          className="input"
+                          placeholder="user@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">SMTP Password</label>
+                        <input
+                          type="password"
+                          value={emailSettings.smtp_pass}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, smtp_pass: e.target.value })}
+                          className="input"
+                          placeholder="••••••••"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-3 p-3 rounded-lg border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={emailSettings.smtp_secure}
+                        onChange={(e) => setEmailSettings({ ...emailSettings, smtp_secure: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <div>
+                        <p className="font-medium text-dark-900">Use SSL/TLS</p>
+                        <p className="text-sm text-dark-500">Enable for secure connections (typically port 465)</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* From Address */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      Sender Information
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">From Email</label>
+                        <input
+                          type="email"
+                          value={emailSettings.from_email}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, from_email: e.target.value })}
+                          className="input"
+                          placeholder="noreply@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="label">From Name</label>
+                        <input
+                          type="text"
+                          value={emailSettings.from_name}
+                          onChange={(e) => setEmailSettings({ ...emailSettings, from_name: e.target.value })}
+                          className="input"
+                          placeholder="Knowledge Base"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Test Email */}
+                  <div className="space-y-4 pt-4 border-t border-dark-100">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Send className="w-4 h-4" />
+                      Test Email
+                    </h3>
+                    <div className="flex gap-3">
+                      <input
+                        type="email"
+                        value={testEmail}
+                        onChange={(e) => setTestEmail(e.target.value)}
+                        className="input flex-1"
+                        placeholder="test@example.com"
+                      />
+                      <button
+                        onClick={handleTestEmail}
+                        disabled={emailTesting || !emailSettings.enabled}
+                        className="btn btn-secondary flex items-center gap-2"
+                      >
+                        {emailTesting ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Send className="w-5 h-5" />
+                        )}
+                        Send Test
+                      </button>
+                    </div>
+                    {!emailSettings.enabled && (
+                      <p className="text-sm text-warning-600">Enable email above to send test emails</p>
+                    )}
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="pt-4">
+                    <button
+                      onClick={handleSaveEmailSettings}
+                      disabled={emailSettingsLoading}
+                      className="btn btn-primary flex items-center gap-2"
+                    >
+                      {emailSettingsLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Save className="w-5 h-5" />
+                      )}
+                      Save Email Settings
+                    </button>
                   </div>
                 </>
               )}

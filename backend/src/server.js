@@ -20,6 +20,7 @@ const todoRoutes = require('./routes/todos');
 const settingsRoutes = require('./routes/settings');
 const rmaRoutes = require('./routes/rmas');
 const webhookRoutes = require('./routes/webhook');
+const emailRoutes = require('./routes/email');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -69,6 +70,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/todos', todoRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/rmas', rmaRoutes);
+app.use('/api/email', emailRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -86,6 +88,10 @@ app.use((req, res) => {
 app.listen(PORT, () => {
   console.log(`KB Backend running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Initialize email reminders
+  const { initializeReminders } = require('./services/reminderService');
+  initializeReminders();
 });
 
 module.exports = app;

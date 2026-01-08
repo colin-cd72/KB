@@ -153,6 +153,18 @@ export const settingsApi = {
   testAI: (api_key) => api.post('/settings/ai/test', { api_key }),
 };
 
+export const emailApi = {
+  getSettings: () => api.get('/email/settings'),
+  updateSettings: (data) => api.put('/email/settings', data),
+  testEmail: (test_email) => api.post('/email/test', { test_email }),
+  getPreferences: () => api.get('/email/preferences'),
+  updatePreferences: (data) => api.put('/email/preferences', data),
+  requestVerification: () => api.post('/email/verify/request'),
+  verifyEmail: (token) => api.post(`/email/verify/${token}`),
+  requestPasswordReset: (email) => api.post('/email/password-reset/request', { email }),
+  resetPassword: (token, password) => api.post(`/email/password-reset/${token}`, { password }),
+};
+
 export const rmasApi = {
   getAll: (params) => api.get('/rmas', { params }),
   getOne: (id) => api.get(`/rmas/${id}`),
