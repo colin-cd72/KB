@@ -147,6 +147,8 @@ function IssueDetail() {
         content: msg.content
       }));
       setConversationHistory(history);
+      // Auto-expand if there's existing conversation
+      setShowAIChat(true);
     }
   }, [issue?.ai_conversation]);
 
@@ -568,16 +570,33 @@ function IssueDetail() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* AI Assistant */}
-          <div className="card overflow-hidden border-primary-100">
+          <div className="card overflow-hidden border-2 border-primary-200 shadow-md">
             <button
               onClick={() => setShowAIChat(!showAIChat)}
-              className="w-full px-4 py-3 bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-between hover:from-primary-100 hover:to-accent-100"
+              className="w-full px-4 py-4 bg-gradient-to-br from-primary-100 to-accent-100 flex items-center justify-between hover:from-primary-200 hover:to-accent-200 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Bot className="w-5 h-5 text-primary-600" />
-                <span className="font-semibold text-primary-900">AI Assistant</span>
+                <div className="p-1.5 bg-primary-600 rounded-lg">
+                  <Bot className="w-5 h-5 text-white" />
+                </div>
+                <div className="text-left">
+                  <span className="font-semibold text-primary-900 block">AI Assistant</span>
+                  <span className="text-xs text-primary-600">
+                    {chatMessages.length > 0 ? 'Click to continue conversation' : 'Click to get help'}
+                  </span>
+                </div>
               </div>
-              <MessageCircle className="w-5 h-5 text-primary-500" />
+              <div className="flex items-center gap-2">
+                {chatMessages.length > 0 && (
+                  <span className="px-2 py-0.5 bg-primary-600 text-white text-xs rounded-full">
+                    {chatMessages.length}
+                  </span>
+                )}
+                <MessageCircle className={clsx(
+                  "w-5 h-5 transition-transform",
+                  showAIChat ? "rotate-180 text-primary-700" : "text-primary-500"
+                )} />
+              </div>
             </button>
 
             {showAIChat && (
