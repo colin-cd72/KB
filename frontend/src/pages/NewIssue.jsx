@@ -488,6 +488,22 @@ function NewIssue() {
                 </div>
               )}
 
+              {/* Solved Button */}
+              {chatMessages.length > 0 && (
+                <div className="p-3 border-t border-gray-200 flex-shrink-0">
+                  <button
+                    onClick={() => {
+                      toast.success('Great! Glad the AI assistant helped solve your problem.');
+                      navigate('/issues');
+                    }}
+                    className="w-full btn bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    This Solved My Problem
+                  </button>
+                </div>
+              )}
+
               {/* Similar Issues */}
               {similarIssues.length > 0 && (
                 <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-gray-50">
