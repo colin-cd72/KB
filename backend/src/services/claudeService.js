@@ -309,39 +309,122 @@ Use null for columns that don't match any equipment field. Each equipment field 
 }
 
 /**
- * Suggest a solution for a new issue based on similar issues and documentation
+ * Suggest a solution for a new issue based on similar issues, documentation, and web knowledge
  */
-async function suggestSolution(problemDescription, context) {
+async function suggestSolution(problemDescription, context, conversationHistory = []) {
   try {
-    const systemPrompt = `You are a helpful technical support assistant. A user is about to create a new issue in a knowledge base system. Based on similar past issues and documentation, provide a helpful suggestion that might solve their problem before they need to submit it.
+    const systemPrompt = `You are an expert technical support assistant with broad knowledge of hardware, software, equipment maintenance, and troubleshooting. A user is creating a new issue in a knowledge base system.
 
-Guidelines:
-- Be concise and practical (max 200 words)
-- If there are similar resolved issues with solutions, reference them
-- Provide actionable steps if possible
-- If you can't find a clear solution, suggest what information they should include in their issue
-- Don't be preachy or overly cautious`;
+Your job is to help solve their problem BEFORE they need to submit an issue ticket. Use:
+1. The provided context from similar resolved issues and documentation
+2. Your broad knowledge of technical topics, common equipment issues, and industry best practices
+3. General troubleshooting approaches from forums, manufacturer guides, and technical resources
 
-    let userMessage = `A user is creating an issue about: ${problemDescription}`;
+Response Guidelines:
+- If you have enough information to suggest a solution, provide clear actionable steps
+- If the problem is unclear, ask 1-2 specific clarifying questions to better understand the issue
+- Reference any similar resolved issues from the knowledge base
+- Include general troubleshooting steps based on common causes
+- Mention if this is a known issue with specific equipment/software
+- Keep responses focused and practical (under 300 words)
+
+When asking clarifying questions, format them as:
+QUESTIONS:
+1. [Your question here]
+2. [Another question if needed]
+
+After questions, still provide any preliminary suggestions you can based on available information.`;
+
+    let messages = [];
+
+    // Add conversation history if exists
+    if (conversationHistory.length > 0) {
+      messages = [...conversationHistory];
+    }
+
+    // Build the current user message
+    let userMessage = `Problem: ${problemDescription}`;
 
     if (context) {
       userMessage += `\n\n${context}`;
     }
 
-    userMessage += `\n\nProvide a brief, helpful suggestion that might solve their problem or help them create a better issue report.`;
+    if (conversationHistory.length === 0) {
+      userMessage += `\n\nAnalyze this problem using your broad technical knowledge. If you need more information to provide a better solution, ask specific clarifying questions. Also provide any preliminary suggestions based on what you know.`;
+    }
+
+    messages.push({ role: 'user', content: userMessage });
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 400,
+      max_tokens: 600,
       system: systemPrompt,
-      messages: [
-        { role: 'user', content: userMessage }
-      ]
+      messages: messages
     });
 
-    return response.content[0].text;
+    const responseText = response.content[0].text;
+
+    // Parse out questions if any
+    const hasQuestions = responseText.includes('QUESTIONS:') || responseText.includes('Question:') || responseText.match(/\?\s*\n/g)?.length >= 2;
+
+    // Extract questions
+    let questions = [];
+    const questionsMatch = responseText.match(/QUESTIONS:\s*([\s\S]*?)(?=\n\n|$)/i);
+    if (questionsMatch) {
+      const questionLines = questionsMatch[1].split('\n').filter(line => line.trim());
+      questions = questionLines.map(q => q.replace(/^\d+\.\s*/, '').trim()).filter(q => q);
+    }
+
+    return {
+      suggestion: responseText,
+      hasQuestions,
+      questions,
+      conversationHistory: messages
+    };
   } catch (error) {
     console.error('Solution suggestion error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Continue conversation with Claude for issue resolution
+ */
+async function continueSolutionConversation(answer, conversationHistory) {
+  try {
+    const systemPrompt = `You are an expert technical support assistant continuing to help solve a technical problem. The user has answered your clarifying questions.
+
+Based on their response:
+1. Provide a more targeted solution now that you have more information
+2. Include specific troubleshooting steps
+3. Reference any relevant knowledge from the conversation
+4. If you still need clarification, ask ONE more focused question
+5. Be practical and action-oriented
+
+Keep your response under 300 words.`;
+
+    const messages = [
+      ...conversationHistory,
+      { role: 'user', content: `User's response: ${answer}` }
+    ];
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      system: systemPrompt,
+      messages: messages.slice(-6) // Keep last 6 messages for context
+    });
+
+    const responseText = response.content[0].text;
+    const hasQuestions = responseText.includes('?') && (responseText.includes('QUESTION:') || responseText.match(/\?\s*$/m));
+
+    return {
+      suggestion: responseText,
+      hasQuestions,
+      conversationHistory: messages
+    };
+  } catch (error) {
+    console.error('Conversation continuation error:', error);
     throw error;
   }
 }
@@ -353,5 +436,6 @@ module.exports = {
   summarizeContent,
   suggestRelatedIssues,
   suggestColumnMappings,
-  suggestSolution
+  suggestSolution,
+  continueSolutionConversation
 };

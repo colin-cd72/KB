@@ -102,6 +102,7 @@ export const searchApi = {
   ai: (data) => api.post('/search/ai', data),
   suggestions: (q) => api.get('/search/suggestions', { params: { q } }),
   similarIssues: (data) => api.post('/search/similar-issues', data),
+  continueConversation: (data) => api.post('/search/continue-conversation', data),
 };
 
 export const dashboardApi = {

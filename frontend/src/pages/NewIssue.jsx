@@ -14,7 +14,10 @@ import {
   CheckCircle2,
   Lightbulb,
   ExternalLink,
-  Search
+  Search,
+  MessageCircle,
+  Send,
+  Bot
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -59,6 +62,13 @@ function NewIssue() {
   const [aiSuggestion, setAiSuggestion] = useState(null);
   const [suggestionDismissed, setSuggestionDismissed] = useState(false);
 
+  // Conversation state
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [hasQuestions, setHasQuestions] = useState(false);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [sendingAnswer, setSendingAnswer] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -85,10 +95,23 @@ function NewIssue() {
     }
 
     setLoadingSuggestions(true);
+    setChatMessages([]);
+    setConversationHistory([]);
+
     try {
       const response = await searchApi.similarIssues({ title, description });
       setSimilarIssues(response.data.similarIssues || []);
       setAiSuggestion(response.data.aiSuggestion);
+      setHasQuestions(response.data.hasQuestions || false);
+      setConversationHistory(response.data.conversationHistory || []);
+
+      // Add AI message to chat
+      if (response.data.aiSuggestion) {
+        setChatMessages([{
+          role: 'assistant',
+          content: response.data.aiSuggestion
+        }]);
+      }
 
       if ((response.data.similarIssues?.length > 0 || response.data.aiSuggestion) && !suggestionDismissed) {
         setShowSuggestions(true);
@@ -110,6 +133,40 @@ function NewIssue() {
       return () => clearTimeout(timer);
     }
   }, [watchedTitle, watchedDescription, fetchSuggestions]);
+
+  // Send answer to continue conversation
+  const sendAnswer = async () => {
+    if (!userAnswer.trim() || sendingAnswer) return;
+
+    const answer = userAnswer.trim();
+    setUserAnswer('');
+    setSendingAnswer(true);
+
+    // Add user message to chat
+    setChatMessages(prev => [...prev, { role: 'user', content: answer }]);
+
+    try {
+      const response = await searchApi.continueConversation({
+        answer,
+        conversationHistory
+      });
+
+      setAiSuggestion(response.data.aiSuggestion);
+      setHasQuestions(response.data.hasQuestions || false);
+      setConversationHistory(response.data.conversationHistory || []);
+
+      // Add AI response to chat
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: response.data.aiSuggestion
+      }]);
+    } catch (error) {
+      console.error('Failed to continue conversation:', error);
+      toast.error('Failed to get response');
+    } finally {
+      setSendingAnswer(false);
+    }
+  };
 
   // Equipment search
   const handleEquipmentSearch = async (value) => {
@@ -157,8 +214,16 @@ function NewIssue() {
     setSuggestionDismissed(true);
   };
 
+  const resetConversation = () => {
+    setChatMessages([]);
+    setConversationHistory([]);
+    setHasQuestions(false);
+    setUserAnswer('');
+    fetchSuggestions();
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -167,9 +232,9 @@ function NewIssue() {
         <h1 className="text-2xl font-bold text-gray-900">Create New Issue</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Main Form */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <form onSubmit={handleSubmit(onSubmit)} className="card p-6 space-y-6">
             {/* Title */}
             <div>
@@ -323,102 +388,151 @@ function NewIssue() {
           </form>
         </div>
 
-        {/* AI Suggestions Sidebar */}
-        <div className="lg:col-span-1 space-y-4">
+        {/* AI Assistant Sidebar */}
+        <div className="lg:col-span-2 space-y-4">
           {/* Loading indicator */}
           {loadingSuggestions && (
             <div className="card p-4 bg-gradient-to-br from-primary-50 to-accent-50 border-primary-100">
               <div className="flex items-center gap-3">
                 <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />
-                <span className="text-sm text-primary-700">Searching for solutions...</span>
+                <span className="text-sm text-primary-700">AI is analyzing your problem...</span>
               </div>
             </div>
           )}
 
-          {/* AI Suggestions */}
-          {showSuggestions && !loadingSuggestions && (similarIssues.length > 0 || aiSuggestion) && (
-            <div className="card overflow-hidden border-primary-100">
-              <div className="p-4 bg-gradient-to-br from-primary-50 to-accent-50 border-b border-primary-100">
+          {/* AI Chat Interface */}
+          {showSuggestions && !loadingSuggestions && (chatMessages.length > 0 || similarIssues.length > 0) && (
+            <div className="card overflow-hidden border-primary-100 flex flex-col" style={{ maxHeight: '70vh' }}>
+              {/* Header */}
+              <div className="p-4 bg-gradient-to-br from-primary-50 to-accent-50 border-b border-primary-100 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary-600" />
-                    <h3 className="font-semibold text-primary-900">AI Suggestions</h3>
+                    <Bot className="w-5 h-5 text-primary-600" />
+                    <h3 className="font-semibold text-primary-900">AI Assistant</h3>
                   </div>
-                  <button
-                    onClick={dismissSuggestions}
-                    className="p-1 hover:bg-primary-100 rounded text-primary-500"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {chatMessages.length > 1 && (
+                      <button
+                        onClick={resetConversation}
+                        className="text-xs text-primary-600 hover:text-primary-700 px-2 py-1"
+                      >
+                        Reset
+                      </button>
+                    )}
+                    <button
+                      onClick={dismissSuggestions}
+                      className="p-1 hover:bg-primary-100 rounded text-primary-500"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <p className="text-sm text-primary-600 mt-1">
-                  We found some information that might help
+                <p className="text-xs text-primary-600 mt-1">
+                  Using knowledge base, documentation, and general expertise
                 </p>
               </div>
 
-              <div className="p-4 space-y-4">
-                {/* AI Generated Suggestion */}
-                {aiSuggestion && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                      <Lightbulb className="w-4 h-4 text-yellow-500" />
-                      Suggested Solution
-                    </div>
-                    <div className="text-sm text-gray-600 bg-yellow-50 rounded-lg p-3 border border-yellow-100">
-                      {aiSuggestion}
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {chatMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={clsx(
+                      'flex',
+                      msg.role === 'user' ? 'justify-end' : 'justify-start'
+                    )}
+                  >
+                    <div
+                      className={clsx(
+                        'max-w-[90%] rounded-lg p-3 text-sm',
+                        msg.role === 'user'
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-gray-100 text-gray-800'
+                      )}
+                    >
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
                     </div>
                   </div>
-                )}
+                ))}
 
-                {/* Similar Resolved Issues */}
-                {similarIssues.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      Similar Resolved Issues
-                    </div>
-                    <div className="space-y-2">
-                      {similarIssues.slice(0, 3).map((issue) => (
-                        <Link
-                          key={issue.id}
-                          to={`/issues/${issue.id}`}
-                          target="_blank"
-                          className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">
-                                {issue.title}
-                              </p>
-                              {issue.solution && (
-                                <p className="text-xs text-green-600 mt-1 line-clamp-2">
-                                  Solution: {issue.solution.substring(0, 100)}...
-                                </p>
-                              )}
-                              <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                                {issue.equipment_name && <span>{issue.equipment_name}</span>}
-                                {issue.category_name && <span>• {issue.category_name}</span>}
-                              </div>
-                            </div>
-                            <ExternalLink className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                          </div>
-                        </Link>
-                      ))}
+                {sendingAnswer && (
+                  <div className="flex justify-start">
+                    <div className="bg-gray-100 rounded-lg p-3">
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
                     </div>
                   </div>
                 )}
               </div>
+
+              {/* Answer Input */}
+              {hasQuestions && (
+                <div className="p-3 border-t border-gray-200 flex-shrink-0">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={userAnswer}
+                      onChange={(e) => setUserAnswer(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendAnswer()}
+                      placeholder="Answer the question..."
+                      className="input flex-1 text-sm py-2"
+                      disabled={sendingAnswer}
+                    />
+                    <button
+                      onClick={sendAnswer}
+                      disabled={!userAnswer.trim() || sendingAnswer}
+                      className="btn btn-primary px-3 py-2"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Similar Issues */}
+              {similarIssues.length > 0 && (
+                <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-gray-50">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    Similar Resolved Issues
+                  </div>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {similarIssues.slice(0, 3).map((issue) => (
+                      <Link
+                        key={issue.id}
+                        to={`/issues/${issue.id}`}
+                        target="_blank"
+                        className="block p-2 bg-white rounded border border-gray-200 hover:border-primary-300 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-gray-900 truncate">
+                              {issue.title}
+                            </p>
+                            {issue.solution && (
+                              <p className="text-xs text-green-600 mt-0.5 line-clamp-1">
+                                {issue.solution.substring(0, 80)}...
+                              </p>
+                            )}
+                          </div>
+                          <ExternalLink className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Search tip when no suggestions */}
           {!showSuggestions && !loadingSuggestions && !suggestionDismissed && (
-            <div className="card p-4 bg-gray-50 border-gray-200">
+            <div className="card p-4 bg-gradient-to-br from-gray-50 to-primary-50 border-gray-200">
               <div className="flex items-start gap-3">
-                <Search className="w-5 h-5 text-gray-400 mt-0.5" />
+                <Bot className="w-6 h-6 text-primary-500 mt-0.5" />
                 <div>
-                  <p className="text-sm text-gray-600">
-                    As you type, we'll search for similar resolved issues and suggest solutions.
+                  <p className="text-sm font-medium text-gray-800">AI Assistant Ready</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    As you describe your issue, AI will search the knowledge base, documentation, and use expert knowledge to suggest solutions.
                   </p>
                 </div>
               </div>
@@ -438,7 +552,7 @@ function NewIssue() {
               ) : (
                 <Search className="w-4 h-4" />
               )}
-              Search Knowledge Base
+              Search for Solutions
             </button>
           )}
         </div>

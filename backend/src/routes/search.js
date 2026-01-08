@@ -191,7 +191,7 @@ router.post('/ai', authenticate, isViewer, async (req, res, next) => {
 // Find similar resolved issues and get AI suggestions for new issue
 router.post('/similar-issues', authenticate, isViewer, async (req, res, next) => {
   try {
-    const { title, description } = req.body;
+    const { title, description, conversationHistory } = req.body;
 
     if (!title && !description) {
       return res.json({ similarIssues: [], aiSuggestion: null });
@@ -225,7 +225,7 @@ router.post('/similar-issues', authenticate, isViewer, async (req, res, next) =>
     );
 
     // Get AI suggestion if Claude is configured
-    let aiSuggestion = null;
+    let aiResponse = null;
     try {
       if (similarIssues.rows.length > 0 || searchText.length >= 20) {
         // Build context from similar issues
@@ -260,9 +260,8 @@ router.post('/similar-issues', authenticate, isViewer, async (req, res, next) =>
           });
         }
 
-        // Call Claude for suggestion
-        const suggestion = await claudeService.suggestSolution(searchText, context);
-        aiSuggestion = suggestion;
+        // Call Claude for suggestion with conversation history
+        aiResponse = await claudeService.suggestSolution(searchText, context, conversationHistory || []);
       }
     } catch (aiError) {
       console.error('AI suggestion error:', aiError.message);
@@ -271,7 +270,31 @@ router.post('/similar-issues', authenticate, isViewer, async (req, res, next) =>
 
     res.json({
       similarIssues: similarIssues.rows,
-      aiSuggestion
+      aiSuggestion: aiResponse?.suggestion || null,
+      hasQuestions: aiResponse?.hasQuestions || false,
+      questions: aiResponse?.questions || [],
+      conversationHistory: aiResponse?.conversationHistory || []
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Continue AI conversation for issue resolution
+router.post('/continue-conversation', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const { answer, conversationHistory } = req.body;
+
+    if (!answer || !conversationHistory) {
+      return res.status(400).json({ error: 'Answer and conversation history required' });
+    }
+
+    const response = await claudeService.continueSolutionConversation(answer, conversationHistory);
+
+    res.json({
+      aiSuggestion: response.suggestion,
+      hasQuestions: response.hasQuestions,
+      conversationHistory: response.conversationHistory
     });
   } catch (error) {
     next(error);
