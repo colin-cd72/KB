@@ -572,15 +572,15 @@ function RMAs() {
       {/* Create RMA Modal */}
       {showForm && (
         <div className="modal-overlay" onClick={resetForm}>
-          <div className="modal-content max-w-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
+          <div className="modal-content max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header flex-shrink-0">
               <h2 className="text-lg font-bold">Create New RMA</h2>
               <button onClick={resetForm} className="btn-icon">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="modal-body space-y-5 max-h-[70vh] overflow-y-auto">
+            <form onSubmit={handleSubmit} className="modal-body space-y-5 flex-1 overflow-y-auto">
               {/* Part Photo */}
               <div>
                 <label className="label flex items-center gap-2">
@@ -897,7 +897,7 @@ function RMAs() {
               </div>
             </form>
 
-            <div className="modal-footer">
+            <div className="modal-footer flex-shrink-0">
               <button type="button" onClick={resetForm} className="btn btn-secondary">
                 Cancel
               </button>
