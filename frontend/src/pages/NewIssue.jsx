@@ -1,19 +1,29 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { issuesApi, categoriesApi, equipmentApi } from '../services/api';
-import { ArrowLeft, Save, Upload, X } from 'lucide-react';
+import { issuesApi, categoriesApi, equipmentApi, searchApi } from '../services/api';
+import {
+  ArrowLeft,
+  Save,
+  X,
+  Sparkles,
+  Loader2,
+  CheckCircle2,
+  Lightbulb,
+  ExternalLink,
+  Search
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+import clsx from 'clsx';
 
 const schema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(500),
   description: z.string().min(20, 'Description must be at least 20 characters'),
   priority: z.enum(['critical', 'high', 'medium', 'low']),
   category_id: z.string().optional(),
-  equipment_id: z.string().optional(),
 });
 
 function NewIssue() {
@@ -22,6 +32,7 @@ function NewIssue() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema),
@@ -30,19 +41,29 @@ function NewIssue() {
     },
   });
 
+  // Watch title and description for AI suggestions
+  const watchedTitle = watch('title');
+  const watchedDescription = watch('description');
+
+  // Equipment autocomplete state
+  const [equipmentId, setEquipmentId] = useState('');
+  const [equipmentSearch, setEquipmentSearch] = useState('');
+  const [equipmentSuggestions, setEquipmentSuggestions] = useState([]);
+  const [showEquipmentSuggestions, setShowEquipmentSuggestions] = useState(false);
+  const [selectedEquipment, setSelectedEquipment] = useState(null);
+
+  // AI suggestions state
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [similarIssues, setSimilarIssues] = useState([]);
+  const [aiSuggestion, setAiSuggestion] = useState(null);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
       const response = await categoriesApi.getAll();
       return response.data.flat;
-    },
-  });
-
-  const { data: equipment } = useQuery({
-    queryKey: ['equipment-list'],
-    queryFn: async () => {
-      const response = await equipmentApi.getAll({ limit: 100 });
-      return response.data.equipment;
     },
   });
 
@@ -54,15 +75,90 @@ function NewIssue() {
     },
   });
 
+  // Debounced AI suggestion fetch
+  const fetchSuggestions = useCallback(async () => {
+    const title = watchedTitle || '';
+    const description = watchedDescription || '';
+
+    if (title.length < 10 && description.length < 20) {
+      return;
+    }
+
+    setLoadingSuggestions(true);
+    try {
+      const response = await searchApi.similarIssues({ title, description });
+      setSimilarIssues(response.data.similarIssues || []);
+      setAiSuggestion(response.data.aiSuggestion);
+
+      if ((response.data.similarIssues?.length > 0 || response.data.aiSuggestion) && !suggestionDismissed) {
+        setShowSuggestions(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch suggestions:', error);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, [watchedTitle, watchedDescription, suggestionDismissed]);
+
+  // Debounce effect for AI suggestions
+  useEffect(() => {
+    const title = watchedTitle || '';
+    const description = watchedDescription || '';
+
+    if (title.length >= 10 || description.length >= 20) {
+      const timer = setTimeout(fetchSuggestions, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [watchedTitle, watchedDescription, fetchSuggestions]);
+
+  // Equipment search
+  const handleEquipmentSearch = async (value) => {
+    setEquipmentSearch(value);
+    setShowEquipmentSuggestions(true);
+
+    if (value.length < 2) {
+      setEquipmentSuggestions([]);
+      return;
+    }
+
+    try {
+      const response = await equipmentApi.getAll({ search: value, limit: 10 });
+      setEquipmentSuggestions(response.data.equipment || []);
+    } catch (error) {
+      console.error('Failed to search equipment:', error);
+      setEquipmentSuggestions([]);
+    }
+  };
+
+  const selectEquipment = (eq) => {
+    setSelectedEquipment(eq);
+    setEquipmentId(eq.id);
+    setEquipmentSearch(`${eq.serial_number || ''} - ${eq.model || eq.name}`);
+    setShowEquipmentSuggestions(false);
+  };
+
+  const clearEquipment = () => {
+    setSelectedEquipment(null);
+    setEquipmentId('');
+    setEquipmentSearch('');
+  };
+
   const onSubmit = (data) => {
     // Clean up empty optional fields
     if (!data.category_id) delete data.category_id;
-    if (!data.equipment_id) delete data.equipment_id;
+    if (equipmentId) {
+      data.equipment_id = equipmentId;
+    }
     createIssue.mutate(data);
   };
 
+  const dismissSuggestions = () => {
+    setShowSuggestions(false);
+    setSuggestionDismissed(true);
+  };
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -71,113 +167,282 @@ function NewIssue() {
         <h1 className="text-2xl font-bold text-gray-900">Create New Issue</h1>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="card p-6 space-y-6">
-        {/* Title */}
-        <div>
-          <label htmlFor="title" className="label">Issue Title *</label>
-          <input
-            id="title"
-            type="text"
-            {...register('title')}
-            className={`input ${errors.title ? 'input-error' : ''}`}
-            placeholder="Brief description of the problem"
-          />
-          {errors.title && (
-            <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
-          )}
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Form */}
+        <div className="lg:col-span-2">
+          <form onSubmit={handleSubmit(onSubmit)} className="card p-6 space-y-6">
+            {/* Title */}
+            <div>
+              <label htmlFor="title" className="label">Issue Title *</label>
+              <input
+                id="title"
+                type="text"
+                {...register('title')}
+                className={`input ${errors.title ? 'input-error' : ''}`}
+                placeholder="Brief description of the problem"
+              />
+              {errors.title && (
+                <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+              )}
+            </div>
 
-        {/* Description */}
-        <div>
-          <label htmlFor="description" className="label">Description *</label>
-          <textarea
-            id="description"
-            {...register('description')}
-            rows={6}
-            className={`input ${errors.description ? 'input-error' : ''}`}
-            placeholder="Provide detailed information about the issue:
+            {/* Description */}
+            <div>
+              <label htmlFor="description" className="label">Description *</label>
+              <textarea
+                id="description"
+                {...register('description')}
+                rows={6}
+                className={`input ${errors.description ? 'input-error' : ''}`}
+                placeholder="Provide detailed information about the issue:
 - What were you trying to do?
 - What happened instead?
 - Any error messages?
 - Steps to reproduce the problem"
-          />
-          {errors.description && (
-            <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+              />
+              {errors.description && (
+                <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Priority */}
+              <div>
+                <label htmlFor="priority" className="label">Priority *</label>
+                <select
+                  id="priority"
+                  {...register('priority')}
+                  className="input"
+                >
+                  <option value="low">Low - Minor inconvenience</option>
+                  <option value="medium">Medium - Affects work but has workaround</option>
+                  <option value="high">High - Significant impact, needs attention</option>
+                  <option value="critical">Critical - System down, urgent fix needed</option>
+                </select>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label htmlFor="category_id" className="label">Category</label>
+                <select
+                  id="category_id"
+                  {...register('category_id')}
+                  className="input"
+                >
+                  <option value="">Select a category</option>
+                  {categories?.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Equipment - Autocomplete */}
+            <div>
+              <label className="label">Related Equipment</label>
+              <div className="relative">
+                {selectedEquipment ? (
+                  <div className="input flex items-center justify-between bg-primary-50 border-primary-200">
+                    <div>
+                      <span className="font-medium text-gray-900">{selectedEquipment.name}</span>
+                      <span className="text-gray-500 ml-2">
+                        {selectedEquipment.serial_number && `S/N: ${selectedEquipment.serial_number}`}
+                        {selectedEquipment.model && ` • ${selectedEquipment.model}`}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearEquipment}
+                      className="p-1 hover:bg-primary-100 rounded"
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={equipmentSearch}
+                      onChange={(e) => handleEquipmentSearch(e.target.value)}
+                      onFocus={() => equipmentSearch.length >= 2 && setShowEquipmentSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowEquipmentSuggestions(false), 200)}
+                      className="input"
+                      placeholder="Type serial number or model to search..."
+                    />
+                    {showEquipmentSuggestions && equipmentSuggestions.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {equipmentSuggestions.map((eq) => (
+                          <button
+                            key={eq.id}
+                            type="button"
+                            onClick={() => selectEquipment(eq)}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                          >
+                            <div className="font-medium text-gray-900">{eq.name}</div>
+                            <div className="text-sm text-gray-500">
+                              {eq.serial_number && <span>S/N: {eq.serial_number}</span>}
+                              {eq.model && <span className="ml-2">Model: {eq.model}</span>}
+                              {eq.location && <span className="ml-2">• {eq.location}</span>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {showEquipmentSuggestions && equipmentSearch.length >= 2 && equipmentSuggestions.length === 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                        No equipment found
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Submit */}
+            <div className="flex items-center justify-end gap-4 pt-4 border-t">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createIssue.isPending}
+                className="btn btn-primary flex items-center gap-2"
+              >
+                {createIssue.isPending ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                Create Issue
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* AI Suggestions Sidebar */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Loading indicator */}
+          {loadingSuggestions && (
+            <div className="card p-4 bg-gradient-to-br from-primary-50 to-accent-50 border-primary-100">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-5 h-5 text-primary-600 animate-spin" />
+                <span className="text-sm text-primary-700">Searching for solutions...</span>
+              </div>
+            </div>
+          )}
+
+          {/* AI Suggestions */}
+          {showSuggestions && !loadingSuggestions && (similarIssues.length > 0 || aiSuggestion) && (
+            <div className="card overflow-hidden border-primary-100">
+              <div className="p-4 bg-gradient-to-br from-primary-50 to-accent-50 border-b border-primary-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary-600" />
+                    <h3 className="font-semibold text-primary-900">AI Suggestions</h3>
+                  </div>
+                  <button
+                    onClick={dismissSuggestions}
+                    className="p-1 hover:bg-primary-100 rounded text-primary-500"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-sm text-primary-600 mt-1">
+                  We found some information that might help
+                </p>
+              </div>
+
+              <div className="p-4 space-y-4">
+                {/* AI Generated Suggestion */}
+                {aiSuggestion && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                      <Lightbulb className="w-4 h-4 text-yellow-500" />
+                      Suggested Solution
+                    </div>
+                    <div className="text-sm text-gray-600 bg-yellow-50 rounded-lg p-3 border border-yellow-100">
+                      {aiSuggestion}
+                    </div>
+                  </div>
+                )}
+
+                {/* Similar Resolved Issues */}
+                {similarIssues.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                      Similar Resolved Issues
+                    </div>
+                    <div className="space-y-2">
+                      {similarIssues.slice(0, 3).map((issue) => (
+                        <Link
+                          key={issue.id}
+                          to={`/issues/${issue.id}`}
+                          target="_blank"
+                          className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {issue.title}
+                              </p>
+                              {issue.solution && (
+                                <p className="text-xs text-green-600 mt-1 line-clamp-2">
+                                  Solution: {issue.solution.substring(0, 100)}...
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                                {issue.equipment_name && <span>{issue.equipment_name}</span>}
+                                {issue.category_name && <span>• {issue.category_name}</span>}
+                              </div>
+                            </div>
+                            <ExternalLink className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Search tip when no suggestions */}
+          {!showSuggestions && !loadingSuggestions && !suggestionDismissed && (
+            <div className="card p-4 bg-gray-50 border-gray-200">
+              <div className="flex items-start gap-3">
+                <Search className="w-5 h-5 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="text-sm text-gray-600">
+                    As you type, we'll search for similar resolved issues and suggest solutions.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Manual search button */}
+          {(watchedTitle?.length >= 5 || watchedDescription?.length >= 10) && (
+            <button
+              type="button"
+              onClick={fetchSuggestions}
+              disabled={loadingSuggestions}
+              className="w-full btn btn-secondary flex items-center justify-center gap-2"
+            >
+              {loadingSuggestions ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Search className="w-4 h-4" />
+              )}
+              Search Knowledge Base
+            </button>
           )}
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Priority */}
-          <div>
-            <label htmlFor="priority" className="label">Priority *</label>
-            <select
-              id="priority"
-              {...register('priority')}
-              className="input"
-            >
-              <option value="low">Low - Minor inconvenience</option>
-              <option value="medium">Medium - Affects work but has workaround</option>
-              <option value="high">High - Significant impact, needs attention</option>
-              <option value="critical">Critical - System down, urgent fix needed</option>
-            </select>
-          </div>
-
-          {/* Category */}
-          <div>
-            <label htmlFor="category_id" className="label">Category</label>
-            <select
-              id="category_id"
-              {...register('category_id')}
-              className="input"
-            >
-              <option value="">Select a category</option>
-              {categories?.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Equipment */}
-          <div className="md:col-span-2">
-            <label htmlFor="equipment_id" className="label">Related Equipment</label>
-            <select
-              id="equipment_id"
-              {...register('equipment_id')}
-              className="input"
-            >
-              <option value="">Select equipment (optional)</option>
-              {equipment?.map((eq) => (
-                <option key={eq.id} value={eq.id}>
-                  {eq.name} {eq.model && `- ${eq.model}`} {eq.location && `(${eq.location})`}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Submit */}
-        <div className="flex items-center justify-end gap-4 pt-4 border-t">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="btn btn-secondary"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={createIssue.isPending}
-            className="btn btn-primary flex items-center gap-2"
-          >
-            {createIssue.isPending ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Save className="w-5 h-5" />
-            )}
-            Create Issue
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }

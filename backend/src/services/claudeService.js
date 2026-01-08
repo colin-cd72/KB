@@ -308,11 +308,50 @@ Use null for columns that don't match any equipment field. Each equipment field 
   }
 }
 
+/**
+ * Suggest a solution for a new issue based on similar issues and documentation
+ */
+async function suggestSolution(problemDescription, context) {
+  try {
+    const systemPrompt = `You are a helpful technical support assistant. A user is about to create a new issue in a knowledge base system. Based on similar past issues and documentation, provide a helpful suggestion that might solve their problem before they need to submit it.
+
+Guidelines:
+- Be concise and practical (max 200 words)
+- If there are similar resolved issues with solutions, reference them
+- Provide actionable steps if possible
+- If you can't find a clear solution, suggest what information they should include in their issue
+- Don't be preachy or overly cautious`;
+
+    let userMessage = `A user is creating an issue about: ${problemDescription}`;
+
+    if (context) {
+      userMessage += `\n\n${context}`;
+    }
+
+    userMessage += `\n\nProvide a brief, helpful suggestion that might solve their problem or help them create a better issue report.`;
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 400,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: userMessage }
+      ]
+    });
+
+    return response.content[0].text;
+  } catch (error) {
+    console.error('Solution suggestion error:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   searchAssistant,
   suggestCategory,
   checkDuplicate,
   summarizeContent,
   suggestRelatedIssues,
-  suggestColumnMappings
+  suggestColumnMappings,
+  suggestSolution
 };

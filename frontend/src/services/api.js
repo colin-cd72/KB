@@ -101,6 +101,7 @@ export const searchApi = {
   manualContent: (params) => api.get('/search/manuals/content', { params }),
   ai: (data) => api.post('/search/ai', data),
   suggestions: (q) => api.get('/search/suggestions', { params: { q } }),
+  similarIssues: (data) => api.post('/search/similar-issues', data),
 };
 
 export const dashboardApi = {

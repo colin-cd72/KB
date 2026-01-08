@@ -188,6 +188,96 @@ router.post('/ai', authenticate, isViewer, async (req, res, next) => {
   }
 });
 
+// Find similar resolved issues and get AI suggestions for new issue
+router.post('/similar-issues', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const { title, description } = req.body;
+
+    if (!title && !description) {
+      return res.json({ similarIssues: [], aiSuggestion: null });
+    }
+
+    const searchText = `${title || ''} ${description || ''}`.trim();
+    if (searchText.length < 10) {
+      return res.json({ similarIssues: [], aiSuggestion: null });
+    }
+
+    // Search for similar resolved issues with accepted solutions
+    const similarIssues = await query(
+      `SELECT i.id, i.title, i.description, i.status, i.priority,
+              i.created_at, i.resolved_at,
+              s.content as solution,
+              s.rating as solution_rating,
+              e.name as equipment_name,
+              c.name as category_name,
+              ts_rank(to_tsvector('english', i.title || ' ' || COALESCE(i.description, '')),
+                      plainto_tsquery('english', $1)) as rank
+       FROM issues i
+       LEFT JOIN solutions s ON s.issue_id = i.id AND s.is_accepted = true
+       LEFT JOIN equipment e ON i.equipment_id = e.id
+       LEFT JOIN categories c ON i.category_id = c.id
+       WHERE i.status IN ('resolved', 'closed')
+         AND (i.title ILIKE $2 OR i.description ILIKE $2
+              OR to_tsvector('english', i.title || ' ' || COALESCE(i.description, '')) @@ plainto_tsquery('english', $1))
+       ORDER BY rank DESC, i.resolved_at DESC NULLS LAST
+       LIMIT 5`,
+      [searchText, `%${searchText.split(' ').slice(0, 3).join('%')}%`]
+    );
+
+    // Get AI suggestion if Claude is configured
+    let aiSuggestion = null;
+    try {
+      if (similarIssues.rows.length > 0 || searchText.length >= 20) {
+        // Build context from similar issues
+        let context = '';
+        if (similarIssues.rows.length > 0) {
+          context = 'Similar resolved issues from knowledge base:\n\n';
+          similarIssues.rows.forEach((issue, i) => {
+            context += `${i + 1}. "${issue.title}"\n`;
+            context += `   Problem: ${issue.description?.substring(0, 200) || 'N/A'}...\n`;
+            if (issue.solution) {
+              context += `   Solution: ${issue.solution.substring(0, 400)}...\n`;
+            }
+            context += '\n';
+          });
+        }
+
+        // Get manual content that might be relevant
+        const manualPages = await query(
+          `SELECT m.title as manual_title, mp.page_number, mp.content
+           FROM manual_pages mp
+           JOIN manuals m ON mp.manual_id = m.id
+           WHERE mp.search_vector @@ plainto_tsquery('english', $1)
+           ORDER BY ts_rank(mp.search_vector, plainto_tsquery('english', $1)) DESC
+           LIMIT 2`,
+          [searchText]
+        );
+
+        if (manualPages.rows.length > 0) {
+          context += '\nRelevant documentation:\n';
+          manualPages.rows.forEach((page) => {
+            context += `From "${page.manual_title}" (Page ${page.page_number}): ${page.content?.substring(0, 300)}...\n`;
+          });
+        }
+
+        // Call Claude for suggestion
+        const suggestion = await claudeService.suggestSolution(searchText, context);
+        aiSuggestion = suggestion;
+      }
+    } catch (aiError) {
+      console.error('AI suggestion error:', aiError.message);
+      // Continue without AI suggestion
+    }
+
+    res.json({
+      similarIssues: similarIssues.rows,
+      aiSuggestion
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get search suggestions (autocomplete)
 router.get('/suggestions', authenticate, isViewer, async (req, res, next) => {
   try {
