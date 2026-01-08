@@ -1,13 +1,29 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
-const client = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY
-});
+let client = null;
+
+// Only initialize client if API key is configured
+function getClient() {
+  if (!process.env.CLAUDE_API_KEY) {
+    return null;
+  }
+  if (!client) {
+    client = new Anthropic({
+      apiKey: process.env.CLAUDE_API_KEY
+    });
+  }
+  return client;
+}
 
 /**
  * Search assistant - analyzes query with context and provides helpful response
  */
 async function searchAssistant(userQuery, context, includeWeb = false) {
+  const anthropic = getClient();
+  if (!anthropic) {
+    throw new Error('Claude API key not configured');
+  }
+
   try {
     const systemPrompt = `You are a helpful technical support assistant for a knowledge base system.
 Your role is to help users troubleshoot problems and find solutions.
@@ -30,7 +46,7 @@ Guidelines:
       userMessage += `\n\nPlease also consider general best practices and common solutions for this type of problem.`;
     }
 
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: systemPrompt,
@@ -66,10 +82,13 @@ Guidelines:
  * Categorize an issue based on title and description
  */
 async function suggestCategory(title, description, categories) {
+  const anthropic = getClient();
+  if (!anthropic) return null;
+
   try {
     const categoryList = categories.map(c => `- ${c.name}: ${c.description || 'No description'}`).join('\n');
 
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 100,
       messages: [
@@ -104,6 +123,9 @@ Respond with ONLY the category name, nothing else.`
  * Check for duplicate issues
  */
 async function checkDuplicate(title, description, existingIssues) {
+  const anthropic = getClient();
+  if (!anthropic) return null;
+
   try {
     if (existingIssues.length === 0) return null;
 
@@ -111,7 +133,7 @@ async function checkDuplicate(title, description, existingIssues) {
       `${i + 1}. [ID: ${issue.id}] ${issue.title}`
     ).join('\n');
 
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 200,
       messages: [
@@ -153,8 +175,11 @@ Only respond with a number or "NONE", nothing else.`
  * Summarize manual content for better search
  */
 async function summarizeContent(content, maxLength = 500) {
+  const anthropic = getClient();
+  if (!anthropic) return content.substring(0, maxLength);
+
   try {
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       messages: [
@@ -180,12 +205,15 @@ Provide a concise summary:`
  * Generate related issue suggestions
  */
 async function suggestRelatedIssues(issue, allIssues) {
+  const anthropic = getClient();
+  if (!anthropic) return [];
+
   try {
     const issueList = allIssues.slice(0, 20).map((i, idx) =>
       `${idx + 1}. ${i.title}`
     ).join('\n');
 
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 100,
       messages: [
@@ -223,6 +251,11 @@ If no related issues, respond with "NONE".`
  * Analyzes headers and sample data to suggest the best field mappings
  */
 async function suggestColumnMappings(headers, sampleRows, equipmentFields) {
+  const anthropic = getClient();
+  if (!anthropic) {
+    return { mappings: {}, confidence: 'low', notes: 'AI not configured' };
+  }
+
   try {
     // Build a representation of the data
     const sampleData = headers.map(header => {
@@ -244,7 +277,7 @@ async function suggestColumnMappings(headers, sampleRows, equipmentFields) {
 
     const fieldList = equipmentFields.map(f => `- ${f}: ${fieldDescriptions[f] || f}`).join('\n');
 
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
       messages: [
@@ -312,6 +345,11 @@ Use null for columns that don't match any equipment field. Each equipment field 
  * Suggest a solution for a new issue based on similar issues, documentation, and web knowledge
  */
 async function suggestSolution(problemDescription, context, conversationHistory = []) {
+  const anthropic = getClient();
+  if (!anthropic) {
+    return null;
+  }
+
   try {
     const systemPrompt = `You are an expert technical support assistant with broad knowledge of hardware, software, equipment maintenance, and troubleshooting. A user is creating a new issue in a knowledge base system.
 
@@ -355,7 +393,7 @@ After questions, still provide any preliminary suggestions you can based on avai
 
     messages.push({ role: 'user', content: userMessage });
 
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 600,
       system: systemPrompt,
@@ -391,6 +429,11 @@ After questions, still provide any preliminary suggestions you can based on avai
  * Continue conversation with Claude for issue resolution
  */
 async function continueSolutionConversation(answer, conversationHistory) {
+  const anthropic = getClient();
+  if (!anthropic) {
+    throw new Error('Claude API key not configured');
+  }
+
   try {
     const systemPrompt = `You are an expert technical support assistant continuing to help solve a technical problem. The user has answered your clarifying questions.
 
@@ -408,7 +451,7 @@ Keep your response under 300 words.`;
       { role: 'user', content: `User's response: ${answer}` }
     ];
 
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
       system: systemPrompt,

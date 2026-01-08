@@ -202,27 +202,37 @@ router.post('/similar-issues', authenticate, isViewer, async (req, res, next) =>
       return res.json({ similarIssues: [], aiSuggestion: null });
     }
 
+    // Create safe LIKE pattern - escape special characters
+    const words = searchText.split(/\s+/).slice(0, 3).filter(w => w.length > 0);
+    const likePattern = words.length > 0 ? `%${words.join('%')}%` : `%${searchText}%`;
+
     // Search for similar resolved issues with accepted solutions
-    const similarIssues = await query(
-      `SELECT i.id, i.title, i.description, i.status, i.priority,
-              i.created_at, i.resolved_at,
-              s.content as solution,
-              s.rating as solution_rating,
-              e.name as equipment_name,
-              c.name as category_name,
-              ts_rank(to_tsvector('english', i.title || ' ' || COALESCE(i.description, '')),
-                      plainto_tsquery('english', $1)) as rank
-       FROM issues i
-       LEFT JOIN solutions s ON s.issue_id = i.id AND s.is_accepted = true
-       LEFT JOIN equipment e ON i.equipment_id = e.id
-       LEFT JOIN categories c ON i.category_id = c.id
-       WHERE i.status IN ('resolved', 'closed')
-         AND (i.title ILIKE $2 OR i.description ILIKE $2
-              OR to_tsvector('english', i.title || ' ' || COALESCE(i.description, '')) @@ plainto_tsquery('english', $1))
-       ORDER BY rank DESC, i.resolved_at DESC NULLS LAST
-       LIMIT 5`,
-      [searchText, `%${searchText.split(' ').slice(0, 3).join('%')}%`]
-    );
+    let similarIssues = { rows: [] };
+    try {
+      similarIssues = await query(
+        `SELECT i.id, i.title, i.description, i.status, i.priority,
+                i.created_at, i.resolved_at,
+                s.content as solution,
+                s.rating as solution_rating,
+                e.name as equipment_name,
+                c.name as category_name,
+                ts_rank(to_tsvector('english', i.title || ' ' || COALESCE(i.description, '')),
+                        plainto_tsquery('english', $1)) as rank
+         FROM issues i
+         LEFT JOIN solutions s ON s.issue_id = i.id AND s.is_accepted = true
+         LEFT JOIN equipment e ON i.equipment_id = e.id
+         LEFT JOIN categories c ON i.category_id = c.id
+         WHERE i.status IN ('resolved', 'closed')
+           AND (i.title ILIKE $2 OR i.description ILIKE $2
+                OR to_tsvector('english', i.title || ' ' || COALESCE(i.description, '')) @@ plainto_tsquery('english', $1))
+         ORDER BY rank DESC, i.resolved_at DESC NULLS LAST
+         LIMIT 5`,
+        [searchText, likePattern]
+      );
+    } catch (dbError) {
+      console.error('Similar issues query error:', dbError.message);
+      // Continue with empty results
+    }
 
     // Get AI suggestion if Claude is configured
     let aiResponse = null;
