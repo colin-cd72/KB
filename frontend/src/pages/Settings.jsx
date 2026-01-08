@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '../store/authStore';
-import { settingsApi } from '../services/api';
+import { settingsApi, categoriesApi } from '../services/api';
 import {
   User,
   Lock,
@@ -16,7 +16,12 @@ import {
   Eye,
   EyeOff,
   Zap,
-  AlertTriangle
+  AlertTriangle,
+  Tag,
+  Plus,
+  Edit,
+  Trash2,
+  X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -49,6 +54,13 @@ function Settings() {
   const [newApiKey, setNewApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
+  // Categories state
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [newCategory, setNewCategory] = useState({ name: '', color: '#3B82F6', description: '' });
+  const [showNewCategory, setShowNewCategory] = useState(false);
+
   const isAdmin = user?.role === 'admin';
 
   const profileForm = useForm({
@@ -74,6 +86,74 @@ function Settings() {
       loadAiSettings();
     }
   }, [isAdmin, activeTab]);
+
+  // Load categories for admins
+  useEffect(() => {
+    if (isAdmin && activeTab === 'categories') {
+      loadCategories();
+    }
+  }, [isAdmin, activeTab]);
+
+  const loadCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+      const response = await categoriesApi.getAll();
+      setCategories(response.data.flat || []);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+      toast.error('Failed to load categories');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategory.name.trim()) {
+      toast.error('Category name is required');
+      return;
+    }
+    try {
+      await categoriesApi.create(newCategory);
+      setNewCategory({ name: '', color: '#3B82F6', description: '' });
+      setShowNewCategory(false);
+      loadCategories();
+      toast.success('Category created');
+    } catch (error) {
+      toast.error('Failed to create category');
+    }
+  };
+
+  const handleUpdateCategory = async () => {
+    if (!editingCategory?.name.trim()) {
+      toast.error('Category name is required');
+      return;
+    }
+    try {
+      await categoriesApi.update(editingCategory.id, {
+        name: editingCategory.name,
+        color: editingCategory.color,
+        description: editingCategory.description
+      });
+      setEditingCategory(null);
+      loadCategories();
+      toast.success('Category updated');
+    } catch (error) {
+      toast.error('Failed to update category');
+    }
+  };
+
+  const handleDeleteCategory = async (id) => {
+    if (!confirm('Are you sure you want to delete this category? Issues using this category will become uncategorized.')) {
+      return;
+    }
+    try {
+      await categoriesApi.delete(id);
+      loadCategories();
+      toast.success('Category deleted');
+    } catch (error) {
+      toast.error('Failed to delete category');
+    }
+  };
 
   const loadAiSettings = async () => {
     try {
@@ -190,6 +270,20 @@ function Settings() {
               <Lock className="w-4 h-4" />
               Security
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('categories')}
+                className={clsx(
+                  'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                  activeTab === 'categories'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-dark-500 hover:text-dark-700'
+                )}
+              >
+                <Tag className="w-4 h-4" />
+                Categories
+              </button>
+            )}
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('ai')}
@@ -328,6 +422,205 @@ function Settings() {
                 </button>
               </div>
             </form>
+          )}
+
+          {/* Categories Tab */}
+          {activeTab === 'categories' && isAdmin && (
+            <div className="space-y-6">
+              {categoriesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+                </div>
+              ) : (
+                <>
+                  {/* Add Category Button */}
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-dark-500">
+                      Manage categories for organizing issues
+                    </p>
+                    <button
+                      onClick={() => setShowNewCategory(true)}
+                      className="btn btn-primary text-sm flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Category
+                    </button>
+                  </div>
+
+                  {/* New Category Form */}
+                  {showNewCategory && (
+                    <div className="p-4 rounded-xl bg-primary-50 border border-primary-200 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-semibold text-primary-900">New Category</h3>
+                        <button
+                          onClick={() => {
+                            setShowNewCategory(false);
+                            setNewCategory({ name: '', color: '#3B82F6', description: '' });
+                          }}
+                          className="text-primary-500 hover:text-primary-700"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="label">Name *</label>
+                          <input
+                            type="text"
+                            value={newCategory.name}
+                            onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                            className="input"
+                            placeholder="e.g., Video Switchers"
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Color</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={newCategory.color}
+                              onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
+                              className="w-12 h-10 rounded cursor-pointer"
+                            />
+                            <input
+                              type="text"
+                              value={newCategory.color}
+                              onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
+                              className="input flex-1 font-mono"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label">Description</label>
+                        <input
+                          type="text"
+                          value={newCategory.description}
+                          onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
+                          className="input"
+                          placeholder="Optional description"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleCreateCategory}
+                          className="btn btn-primary flex items-center gap-2"
+                        >
+                          <Save className="w-4 h-4" />
+                          Create Category
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Categories List */}
+                  <div className="space-y-2">
+                    {categories.length === 0 ? (
+                      <div className="text-center py-8 text-dark-500">
+                        <Tag className="w-10 h-10 mx-auto mb-2 text-dark-300" />
+                        <p>No categories yet</p>
+                        <p className="text-sm">Create your first category to organize issues</p>
+                      </div>
+                    ) : (
+                      categories.map((category) => (
+                        <div
+                          key={category.id}
+                          className="p-4 rounded-xl border border-dark-100 hover:border-dark-200 transition-colors"
+                        >
+                          {editingCategory?.id === category.id ? (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="label">Name *</label>
+                                  <input
+                                    type="text"
+                                    value={editingCategory.name}
+                                    onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                                    className="input"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="label">Color</label>
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="color"
+                                      value={editingCategory.color || '#3B82F6'}
+                                      onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
+                                      className="w-12 h-10 rounded cursor-pointer"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={editingCategory.color || '#3B82F6'}
+                                      onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
+                                      className="input flex-1 font-mono"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="label">Description</label>
+                                <input
+                                  type="text"
+                                  value={editingCategory.description || ''}
+                                  onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                                  className="input"
+                                />
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => setEditingCategory(null)}
+                                  className="btn btn-secondary"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={handleUpdateCategory}
+                                  className="btn btn-primary flex items-center gap-2"
+                                >
+                                  <Save className="w-4 h-4" />
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-4 h-4 rounded"
+                                  style={{ backgroundColor: category.color || '#3B82F6' }}
+                                />
+                                <div>
+                                  <p className="font-medium text-dark-900">{category.name}</p>
+                                  {category.description && (
+                                    <p className="text-sm text-dark-500">{category.description}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setEditingCategory({ ...category })}
+                                  className="p-2 text-dark-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCategory(category.id)}
+                                  className="p-2 text-dark-400 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           {/* AI Configuration Tab */}

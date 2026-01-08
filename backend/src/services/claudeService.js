@@ -561,6 +561,139 @@ What do you see in the image? What might be causing the problem? What troublesho
   }
 }
 
+/**
+ * Search for equipment manual URLs online
+ * Returns potential download links for manufacturer documentation
+ */
+async function searchEquipmentManual(manufacturer, model, productName = '') {
+  const anthropic = getClient();
+  if (!anthropic) {
+    return { found: false, error: 'Claude API key not configured' };
+  }
+
+  try {
+    // Build search context
+    const searchTerms = [manufacturer, model, productName].filter(Boolean).join(' ');
+
+    const systemPrompt = `You are a broadcast equipment documentation specialist. Your task is to identify the most likely official documentation sources for professional AV equipment.
+
+For the given equipment, provide:
+1. The official manufacturer website URL for this product line
+2. The most likely direct URL or search path to find the user manual/documentation
+3. Alternative documentation sources (support portals, knowledge bases)
+
+Focus on these major broadcast equipment manufacturers:
+- Ross Video: rossvideocom support portal
+- Novastar: novastar.tech downloads section
+- Brompton Technology: bromptontech.com resources
+- Blackmagic Design: blackmagicdesign.com support center
+- AJA: aja.com support/downloads
+- Tektronix: tek.com manuals
+- Panasonic Broadcast: pro-av.panasonic.net
+- Arista: arista.com documentation
+
+Respond in JSON format only:
+{
+  "found": true/false,
+  "manufacturer_url": "https://...",
+  "manual_search_url": "https://... (direct link or search page for this product)",
+  "alternative_sources": ["url1", "url2"],
+  "search_tips": "How to find the manual on their site",
+  "notes": "Any relevant information about documentation availability"
+}`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: `Find documentation sources for this broadcast equipment:
+Manufacturer: ${manufacturer || 'Unknown'}
+Model: ${model || 'Unknown'}
+Product Name: ${productName || 'N/A'}
+
+Provide the most accurate URLs for finding the official user manual.`
+        }
+      ]
+    });
+
+    const text = response.content[0].text.trim();
+
+    // Parse JSON response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return {
+        found: result.found || false,
+        manufacturer_url: result.manufacturer_url || null,
+        manual_search_url: result.manual_search_url || null,
+        alternative_sources: result.alternative_sources || [],
+        search_tips: result.search_tips || '',
+        notes: result.notes || ''
+      };
+    }
+
+    return { found: false, error: 'Could not parse response' };
+  } catch (error) {
+    console.error('Manual search error:', error);
+    return { found: false, error: error.message };
+  }
+}
+
+/**
+ * Suggest which existing manual might be relevant for equipment based on manufacturer/model
+ */
+async function matchManualToEquipment(equipment, availableManuals) {
+  const anthropic = getClient();
+  if (!anthropic || availableManuals.length === 0) {
+    return null;
+  }
+
+  try {
+    const manualList = availableManuals.map((m, i) =>
+      `${i + 1}. "${m.title}" ${m.description ? `- ${m.description}` : ''}`
+    ).join('\n');
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 100,
+      messages: [
+        {
+          role: 'user',
+          content: `Match this equipment to the most relevant manual if one exists:
+
+Equipment:
+- Name: ${equipment.name}
+- Manufacturer: ${equipment.manufacturer || 'Unknown'}
+- Model: ${equipment.model || 'Unknown'}
+
+Available Manuals:
+${manualList}
+
+If a manual clearly matches this equipment (same manufacturer and product line), respond with ONLY the number.
+If no manual matches, respond with "NONE".`
+        }
+      ]
+    });
+
+    const result = response.content[0].text.trim();
+
+    if (result === 'NONE') return null;
+
+    const index = parseInt(result) - 1;
+    if (index >= 0 && index < availableManuals.length) {
+      return availableManuals[index];
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Manual matching error:', error);
+    return null;
+  }
+}
+
 module.exports = {
   searchAssistant,
   suggestCategory,
@@ -570,5 +703,7 @@ module.exports = {
   suggestColumnMappings,
   suggestSolution,
   continueSolutionConversation,
-  analyzeIssueImage
+  analyzeIssueImage,
+  searchEquipmentManual,
+  matchManualToEquipment
 };

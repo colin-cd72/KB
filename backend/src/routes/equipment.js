@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const { query } = require('../config/database');
 const { authenticate, isTechnician, isViewer, isAdmin } = require('../middleware/auth');
-const { suggestColumnMappings } = require('../services/claudeService');
+const { suggestColumnMappings, searchEquipmentManual, matchManualToEquipment } = require('../services/claudeService');
 
 // Configure multer for Excel file uploads
 const storage = multer.diskStorage({
@@ -629,6 +629,186 @@ router.post('/import/cancel', authenticate, isTechnician, async (req, res, next)
     }
 
     res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Search for equipment manual online using AI
+router.post('/:id/find-manual', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    // Get equipment details
+    const equipmentResult = await query(
+      'SELECT * FROM equipment WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (equipmentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Equipment not found' });
+    }
+
+    const equipment = equipmentResult.rows[0];
+
+    // Search for manual URLs
+    const searchResult = await searchEquipmentManual(
+      equipment.manufacturer,
+      equipment.model,
+      equipment.name
+    );
+
+    res.json({
+      equipment: {
+        id: equipment.id,
+        name: equipment.name,
+        manufacturer: equipment.manufacturer,
+        model: equipment.model
+      },
+      ...searchResult
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get manual suggestions for equipment (matching existing manuals)
+router.get('/:id/manual-suggestions', authenticate, isViewer, async (req, res, next) => {
+  try {
+    // Get equipment details
+    const equipmentResult = await query(
+      'SELECT * FROM equipment WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (equipmentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Equipment not found' });
+    }
+
+    const equipment = equipmentResult.rows[0];
+
+    // Get all manuals not already linked to this equipment
+    const manualsResult = await query(
+      `SELECT id, title, description, file_name, created_at
+       FROM manuals
+       WHERE equipment_id IS NULL OR equipment_id != $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [req.params.id]
+    );
+
+    const availableManuals = manualsResult.rows;
+
+    // Use AI to find potential matches
+    const matchedManual = await matchManualToEquipment(equipment, availableManuals);
+
+    // Also find manuals with similar manufacturer names
+    const similarManuals = availableManuals.filter(m => {
+      const titleLower = m.title.toLowerCase();
+      const descLower = (m.description || '').toLowerCase();
+      const mfgLower = (equipment.manufacturer || '').toLowerCase();
+      const modelLower = (equipment.model || '').toLowerCase();
+
+      return (mfgLower && (titleLower.includes(mfgLower) || descLower.includes(mfgLower))) ||
+             (modelLower && (titleLower.includes(modelLower) || descLower.includes(modelLower)));
+    }).slice(0, 5);
+
+    res.json({
+      equipment: {
+        id: equipment.id,
+        name: equipment.name,
+        manufacturer: equipment.manufacturer,
+        model: equipment.model
+      },
+      ai_suggested: matchedManual,
+      similar_manuals: similarManuals,
+      all_available: availableManuals.slice(0, 20)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Link a manual to equipment
+router.post('/:id/link-manual', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const { manual_id } = req.body;
+
+    if (!manual_id) {
+      return res.status(400).json({ error: 'manual_id is required' });
+    }
+
+    // Verify equipment exists
+    const equipmentResult = await query(
+      'SELECT id, name FROM equipment WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (equipmentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Equipment not found' });
+    }
+
+    // Update manual to link to equipment
+    const result = await query(
+      'UPDATE manuals SET equipment_id = $1 WHERE id = $2 RETURNING *',
+      [req.params.id, manual_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Manual not found' });
+    }
+
+    res.json({
+      message: 'Manual linked successfully',
+      manual: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Unlink a manual from equipment
+router.post('/:id/unlink-manual', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const { manual_id } = req.body;
+
+    if (!manual_id) {
+      return res.status(400).json({ error: 'manual_id is required' });
+    }
+
+    // Update manual to remove equipment link
+    const result = await query(
+      'UPDATE manuals SET equipment_id = NULL WHERE id = $1 AND equipment_id = $2 RETURNING *',
+      [manual_id, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Manual not found or not linked to this equipment' });
+    }
+
+    res.json({
+      message: 'Manual unlinked successfully',
+      manual: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get all equipment without manuals (for bulk manual assignment)
+router.get('/without-manuals/list', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT e.id, e.name, e.model, e.manufacturer, e.location,
+              (SELECT COUNT(*) FROM manuals WHERE equipment_id = e.id) as manual_count
+       FROM equipment e
+       WHERE e.is_active = true
+       AND NOT EXISTS (SELECT 1 FROM manuals WHERE equipment_id = e.id)
+       ORDER BY e.manufacturer, e.model, e.name`
+    );
+
+    res.json({
+      equipment: result.rows,
+      total: result.rows.length
+    });
   } catch (error) {
     next(error);
   }

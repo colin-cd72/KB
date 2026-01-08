@@ -83,6 +83,12 @@ export const equipmentApi = {
   }),
   importExecute: (data) => api.post('/equipment/import/execute', data),
   importCancel: (tempFile) => api.post('/equipment/import/cancel', { tempFile }),
+  // Manual management
+  findManual: (id) => api.post(`/equipment/${id}/find-manual`),
+  getManualSuggestions: (id) => api.get(`/equipment/${id}/manual-suggestions`),
+  linkManual: (id, manual_id) => api.post(`/equipment/${id}/link-manual`, { manual_id }),
+  unlinkManual: (id, manual_id) => api.post(`/equipment/${id}/unlink-manual`, { manual_id }),
+  getWithoutManuals: () => api.get('/equipment/without-manuals/list'),
 };
 
 export const categoriesApi = {

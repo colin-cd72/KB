@@ -29,7 +29,11 @@ import {
   FileText,
   Hash,
   ExternalLink,
-  BookOpen
+  BookOpen,
+  Link2,
+  Unlink,
+  Globe,
+  Info
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -70,6 +74,14 @@ function Equipment() {
   const [importResults, setImportResults] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Manual management state
+  const [showManualFinder, setShowManualFinder] = useState(false);
+  const [manualSearchResults, setManualSearchResults] = useState(null);
+  const [manualSearching, setManualSearching] = useState(false);
+  const [manualSuggestions, setManualSuggestions] = useState(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [showLinkManual, setShowLinkManual] = useState(false);
 
   const { data: equipmentData, isLoading } = useQuery({
     queryKey: ['equipment', page, search, sortBy, sortOrder],
@@ -122,10 +134,45 @@ function Equipment() {
 
   const createEquipment = useMutation({
     mutationFn: (data) => equipmentApi.create(data),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries(['equipment']);
       resetForm();
       toast.success('Equipment added');
+
+      // Prompt to add manual for the new equipment
+      const newEquipment = response.data.equipment;
+      if (newEquipment) {
+        toast((t) => (
+          <div className="flex flex-col gap-2">
+            <p className="font-medium">Add a manual for {newEquipment.name}?</p>
+            <p className="text-sm text-gray-500">Link documentation to help with troubleshooting</p>
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  handleViewDetails(newEquipment);
+                  setTimeout(() => {
+                    setShowManualFinder(true);
+                    handleFindManualOnline(newEquipment.id);
+                  }, 300);
+                }}
+                className="text-xs bg-primary-100 hover:bg-primary-200 text-primary-700 px-3 py-1.5 rounded-lg"
+              >
+                Find Manual
+              </button>
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        ), {
+          duration: 10000,
+          position: 'bottom-right',
+        });
+      }
     },
   });
 
@@ -266,6 +313,62 @@ function Equipment() {
     manufacturer: 'Manufacturer',
     location: 'Location',
     description: 'Description'
+  };
+
+  // Manual management functions
+  const handleFindManualOnline = async (equipmentId) => {
+    setManualSearching(true);
+    setManualSearchResults(null);
+    try {
+      const response = await equipmentApi.findManual(equipmentId);
+      setManualSearchResults(response.data);
+    } catch (error) {
+      toast.error('Failed to search for manual');
+    } finally {
+      setManualSearching(false);
+    }
+  };
+
+  const handleGetManualSuggestions = async (equipmentId) => {
+    setLoadingSuggestions(true);
+    setManualSuggestions(null);
+    try {
+      const response = await equipmentApi.getManualSuggestions(equipmentId);
+      setManualSuggestions(response.data);
+    } catch (error) {
+      toast.error('Failed to get manual suggestions');
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleLinkManual = async (equipmentId, manualId) => {
+    try {
+      await equipmentApi.linkManual(equipmentId, manualId);
+      toast.success('Manual linked successfully');
+      // Refresh equipment details
+      const response = await equipmentApi.getOne(equipmentId);
+      setEquipmentDetails(response.data);
+      setShowLinkManual(false);
+      setManualSuggestions(null);
+      queryClient.invalidateQueries(['equipment']);
+    } catch (error) {
+      toast.error('Failed to link manual');
+    }
+  };
+
+  const handleUnlinkManual = async (equipmentId, manualId) => {
+    if (!confirm('Unlink this manual from the equipment?')) return;
+    try {
+      await equipmentApi.unlinkManual(equipmentId, manualId);
+      toast.success('Manual unlinked');
+      // Refresh equipment details
+      const response = await equipmentApi.getOne(equipmentId);
+      setEquipmentDetails(response.data);
+      queryClient.invalidateQueries(['equipment']);
+    } catch (error) {
+      toast.error('Failed to unlink manual');
+    }
   };
 
   const handleEdit = (eq) => {
@@ -772,30 +875,389 @@ function Equipment() {
                   </div>
 
                   {/* Related Manuals */}
-                  {equipmentDetails.manuals?.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
                         <BookOpen className="w-4 h-4" />
-                        Related Manuals
+                        Manuals
                       </h3>
+                      {canEdit && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setShowManualFinder(true);
+                              handleFindManualOnline(selectedEquipment.id);
+                            }}
+                            className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                          >
+                            <Globe className="w-3 h-3" />
+                            Find Online
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowLinkManual(true);
+                              handleGetManualSuggestions(selectedEquipment.id);
+                            }}
+                            className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                          >
+                            <Link2 className="w-3 h-3" />
+                            Link Existing
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {equipmentDetails.manuals?.length > 0 ? (
                       <div className="space-y-2">
                         {equipmentDetails.manuals.map((manual) => (
-                          <Link
+                          <div
                             key={manual.id}
-                            to={`/manuals/${manual.id}`}
-                            onClick={closeDetails}
-                            className="flex items-center justify-between p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                            className="flex items-center justify-between p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group"
                           >
-                            <div className="flex items-center gap-3">
+                            <Link
+                              to={`/manuals/${manual.id}`}
+                              onClick={closeDetails}
+                              className="flex items-center gap-3 flex-1"
+                            >
                               <FileText className="w-4 h-4 text-blue-600" />
                               <span className="text-gray-900">{manual.title}</span>
                               {manual.version && (
                                 <span className="text-xs text-gray-500">v{manual.version}</span>
                               )}
+                            </Link>
+                            <div className="flex items-center gap-2">
+                              <Link
+                                to={`/manuals/${manual.id}`}
+                                onClick={closeDetails}
+                                className="p-1 text-gray-400 hover:text-blue-600"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </Link>
+                              {canEdit && (
+                                <button
+                                  onClick={() => handleUnlinkManual(selectedEquipment.id, manual.id)}
+                                  className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Unlink manual"
+                                >
+                                  <Unlink className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
-                            <ExternalLink className="w-4 h-4 text-gray-400" />
-                          </Link>
+                          </div>
                         ))}
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-yellow-800">No manuals linked</p>
+                            <p className="text-xs text-yellow-700 mt-1">
+                              Link a manual to help with troubleshooting and documentation
+                            </p>
+                            {canEdit && (
+                              <div className="flex gap-2 mt-3">
+                                <button
+                                  onClick={() => {
+                                    setShowManualFinder(true);
+                                    handleFindManualOnline(selectedEquipment.id);
+                                  }}
+                                  className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1.5 rounded-lg flex items-center gap-1"
+                                >
+                                  <Globe className="w-3 h-3" />
+                                  Find Manual Online
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setShowLinkManual(true);
+                                    handleGetManualSuggestions(selectedEquipment.id);
+                                  }}
+                                  className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1.5 rounded-lg flex items-center gap-1"
+                                >
+                                  <Link2 className="w-3 h-3" />
+                                  Link Existing Manual
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Find Manual Online Modal */}
+                  {showManualFinder && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50">
+                      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b">
+                          <div className="flex items-center gap-3">
+                            <Globe className="w-5 h-5 text-primary-600" />
+                            <h3 className="font-semibold">Find Manual Online</h3>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setShowManualFinder(false);
+                              setManualSearchResults(null);
+                            }}
+                            className="p-2 hover:bg-gray-100 rounded-lg"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                        <div className="flex-1 overflow-auto p-6">
+                          {manualSearching ? (
+                            <div className="flex flex-col items-center justify-center py-12">
+                              <Loader2 className="w-8 h-8 text-primary-600 animate-spin mb-3" />
+                              <p className="text-sm text-gray-500">Searching for manual sources...</p>
+                            </div>
+                          ) : manualSearchResults ? (
+                            <div className="space-y-4">
+                              <div className="bg-gray-50 rounded-lg p-3">
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Equipment:</span> {manualSearchResults.equipment?.name}
+                                </p>
+                                {manualSearchResults.equipment?.manufacturer && (
+                                  <p className="text-sm text-gray-600">
+                                    <span className="font-medium">Manufacturer:</span> {manualSearchResults.equipment.manufacturer}
+                                  </p>
+                                )}
+                                {manualSearchResults.equipment?.model && (
+                                  <p className="text-sm text-gray-600">
+                                    <span className="font-medium">Model:</span> {manualSearchResults.equipment.model}
+                                  </p>
+                                )}
+                              </div>
+
+                              {manualSearchResults.found ? (
+                                <>
+                                  {manualSearchResults.manufacturer_url && (
+                                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                      <p className="text-sm font-medium text-green-800 mb-2">Manufacturer Website</p>
+                                      <a
+                                        href={manualSearchResults.manufacturer_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-green-700 hover:text-green-800 underline flex items-center gap-1"
+                                      >
+                                        {manualSearchResults.manufacturer_url}
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    </div>
+                                  )}
+
+                                  {manualSearchResults.manual_search_url && (
+                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                      <p className="text-sm font-medium text-blue-800 mb-2">Documentation Page</p>
+                                      <a
+                                        href={manualSearchResults.manual_search_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-sm text-blue-700 hover:text-blue-800 underline flex items-center gap-1"
+                                      >
+                                        {manualSearchResults.manual_search_url}
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    </div>
+                                  )}
+
+                                  {manualSearchResults.search_tips && (
+                                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                      <p className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                                        <Info className="w-4 h-4" />
+                                        How to find the manual
+                                      </p>
+                                      <p className="text-sm text-gray-600">{manualSearchResults.search_tips}</p>
+                                    </div>
+                                  )}
+
+                                  {manualSearchResults.alternative_sources?.length > 0 && (
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-700 mb-2">Alternative Sources</p>
+                                      <div className="space-y-2">
+                                        {manualSearchResults.alternative_sources.map((url, i) => (
+                                          <a
+                                            key={i}
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block text-sm text-primary-600 hover:text-primary-700 underline"
+                                          >
+                                            {url}
+                                          </a>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {manualSearchResults.notes && (
+                                    <p className="text-xs text-gray-500 italic">{manualSearchResults.notes}</p>
+                                  )}
+
+                                  <div className="pt-4 border-t">
+                                    <p className="text-sm text-gray-600 mb-3">
+                                      After downloading the manual, upload it to the Manuals section and link it to this equipment.
+                                    </p>
+                                    <Link
+                                      to="/manuals"
+                                      onClick={() => {
+                                        setShowManualFinder(false);
+                                        closeDetails();
+                                      }}
+                                      className="btn btn-primary text-sm flex items-center gap-2 justify-center"
+                                    >
+                                      <Upload className="w-4 h-4" />
+                                      Go to Manuals
+                                    </Link>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-center py-8">
+                                  <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
+                                  <p className="text-gray-700 font-medium">No manual sources found</p>
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    Try searching manually on the manufacturer's website
+                                  </p>
+                                  {manualSearchResults.error && (
+                                    <p className="text-xs text-red-500 mt-2">{manualSearchResults.error}</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Link Existing Manual Modal */}
+                  {showLinkManual && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50">
+                      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b">
+                          <div className="flex items-center gap-3">
+                            <Link2 className="w-5 h-5 text-primary-600" />
+                            <h3 className="font-semibold">Link Manual to Equipment</h3>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setShowLinkManual(false);
+                              setManualSuggestions(null);
+                            }}
+                            className="p-2 hover:bg-gray-100 rounded-lg"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                        <div className="flex-1 overflow-auto p-6">
+                          {loadingSuggestions ? (
+                            <div className="flex flex-col items-center justify-center py-12">
+                              <Loader2 className="w-8 h-8 text-primary-600 animate-spin mb-3" />
+                              <p className="text-sm text-gray-500">Finding matching manuals...</p>
+                            </div>
+                          ) : manualSuggestions ? (
+                            <div className="space-y-4">
+                              {/* AI Suggested */}
+                              {manualSuggestions.ai_suggested && (
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-purple-500" />
+                                    AI Recommended
+                                  </p>
+                                  <button
+                                    onClick={() => handleLinkManual(selectedEquipment.id, manualSuggestions.ai_suggested.id)}
+                                    className="w-full p-4 bg-purple-50 border-2 border-purple-200 rounded-lg hover:bg-purple-100 text-left transition-colors"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="font-medium text-gray-900">{manualSuggestions.ai_suggested.title}</p>
+                                        {manualSuggestions.ai_suggested.description && (
+                                          <p className="text-sm text-gray-500 mt-1">{manualSuggestions.ai_suggested.description}</p>
+                                        )}
+                                      </div>
+                                      <Link2 className="w-5 h-5 text-purple-600" />
+                                    </div>
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Similar Manuals */}
+                              {manualSuggestions.similar_manuals?.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700 mb-2">Similar Manuals</p>
+                                  <div className="space-y-2">
+                                    {manualSuggestions.similar_manuals
+                                      .filter(m => m.id !== manualSuggestions.ai_suggested?.id)
+                                      .map((manual) => (
+                                        <button
+                                          key={manual.id}
+                                          onClick={() => handleLinkManual(selectedEquipment.id, manual.id)}
+                                          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 text-left transition-colors flex items-center justify-between"
+                                        >
+                                          <div>
+                                            <p className="text-sm font-medium text-gray-900">{manual.title}</p>
+                                            {manual.description && (
+                                              <p className="text-xs text-gray-500 mt-0.5">{manual.description}</p>
+                                            )}
+                                          </div>
+                                          <Link2 className="w-4 h-4 text-gray-400" />
+                                        </button>
+                                      ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* All Available */}
+                              {manualSuggestions.all_available?.length > 0 && (
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700 mb-2">All Available Manuals</p>
+                                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                                    {manualSuggestions.all_available
+                                      .filter(m =>
+                                        m.id !== manualSuggestions.ai_suggested?.id &&
+                                        !manualSuggestions.similar_manuals?.some(sm => sm.id === m.id)
+                                      )
+                                      .map((manual) => (
+                                        <button
+                                          key={manual.id}
+                                          onClick={() => handleLinkManual(selectedEquipment.id, manual.id)}
+                                          className="w-full p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition-colors flex items-center justify-between"
+                                        >
+                                          <div>
+                                            <p className="text-sm font-medium text-gray-900">{manual.title}</p>
+                                            <p className="text-xs text-gray-400">{manual.file_name}</p>
+                                          </div>
+                                          <Link2 className="w-4 h-4 text-gray-400" />
+                                        </button>
+                                      ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {!manualSuggestions.ai_suggested &&
+                               !manualSuggestions.similar_manuals?.length &&
+                               !manualSuggestions.all_available?.length && (
+                                <div className="text-center py-8">
+                                  <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                  <p className="text-gray-700 font-medium">No manuals available</p>
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    Upload a manual first, then link it to this equipment
+                                  </p>
+                                  <Link
+                                    to="/manuals"
+                                    onClick={() => {
+                                      setShowLinkManual(false);
+                                      closeDetails();
+                                    }}
+                                    className="btn btn-primary text-sm mt-4 inline-flex items-center gap-2"
+                                  >
+                                    <Upload className="w-4 h-4" />
+                                    Upload Manual
+                                  </Link>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   )}
