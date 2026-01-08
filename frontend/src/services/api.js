@@ -96,6 +96,7 @@ export const equipmentApi = {
   uploadImage: (id, formData) => api.post(`/equipment/${id}/upload-image`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+  deleteImage: (id) => api.delete(`/equipment/${id}/image`),
 };
 
 export const categoriesApi = {

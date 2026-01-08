@@ -445,6 +445,23 @@ function Equipment() {
     }
   };
 
+  const handleDeleteImage = async (equipmentId) => {
+    if (!confirm('Remove this image?')) return;
+
+    setFetchingImage(true);
+    try {
+      await equipmentApi.deleteImage(equipmentId);
+      toast.success('Image removed');
+      const detailResponse = await equipmentApi.getOne(equipmentId);
+      setEquipmentDetails(detailResponse.data);
+      queryClient.invalidateQueries(['equipment']);
+    } catch (error) {
+      toast.error('Failed to remove image');
+    } finally {
+      setFetchingImage(false);
+    }
+  };
+
   const handleEdit = (eq) => {
     setFormData({
       name: eq.name || '',
@@ -818,6 +835,16 @@ function Equipment() {
                   <div className="w-24 h-24 bg-purple-100 rounded-lg flex items-center justify-center">
                     <Monitor className="w-10 h-10 text-purple-400" />
                   </div>
+                )}
+                {canEdit && equipmentDetails?.equipment?.image_path && (
+                  <button
+                    onClick={() => handleDeleteImage(selectedEquipment.id)}
+                    disabled={fetchingImage}
+                    className="absolute -top-2 -right-2 p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 shadow-lg"
+                    title="Remove image"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 )}
                 {canEdit && !equipmentDetails?.equipment?.image_path && (
                   <div className="absolute -bottom-2 -right-2 flex gap-1">

@@ -1068,6 +1068,50 @@ router.post('/:id/upload-image', authenticate, isTechnician, equipmentImageUploa
   }
 });
 
+// Delete equipment image
+router.delete('/:id/image', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const equipmentResult = await query(
+      'SELECT id, image_path, manufacturer, model FROM equipment WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (equipmentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Equipment not found' });
+    }
+
+    const equipment = equipmentResult.rows[0];
+
+    if (!equipment.image_path) {
+      return res.status(400).json({ error: 'Equipment has no image' });
+    }
+
+    // Check if other equipment uses this image
+    const othersUsingImage = await query(
+      'SELECT COUNT(*) as count FROM equipment WHERE image_path = $1 AND id != $2',
+      [equipment.image_path, req.params.id]
+    );
+
+    // Clear the image path from this equipment
+    await query(
+      'UPDATE equipment SET image_path = NULL WHERE id = $1',
+      [req.params.id]
+    );
+
+    // If no other equipment uses this image, delete the file
+    if (parseInt(othersUsingImage.rows[0].count) === 0) {
+      const filePath = path.join(__dirname, '../..', equipment.image_path);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get equipment without images
 router.get('/without-images/list', authenticate, isViewer, async (req, res, next) => {
   try {

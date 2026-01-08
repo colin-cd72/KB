@@ -30,44 +30,39 @@ async function findProductImageUrl(manufacturer, model, productName = '') {
   }
 
   try {
-    const systemPrompt = `You are a broadcast equipment image finder. Your task is to provide the most likely official product image URL for professional AV equipment.
-
-Focus on these manufacturer image sources:
-- Ross Video: rossvideo.com product pages (look for /files/ or /images/)
-- Blackmagic Design: blackmagicdesign.com/products images
-- AJA: aja.com product images
-- Novastar: novastar.tech product images
-- Brompton: bromptontech.com product images
-- Tektronix: tek.com product images
-- Panasonic: pro-av.panasonic.net product images
-- Arista: arista.com product images
-
-Return ONLY a JSON object with this format:
-{
-  "found": true/false,
-  "image_url": "direct URL to product image (jpg/png/webp)",
-  "source": "manufacturer website or other source",
-  "confidence": "high/medium/low"
-}
-
-Important:
-- Only return URLs that are likely to be direct image files
-- Prefer official manufacturer product images
-- If you cannot find a specific image URL, set found to false`;
-
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
-      system: systemPrompt,
+      max_tokens: 400,
       messages: [
         {
           role: 'user',
-          content: `Find an official product image URL for:
+          content: `Find the direct image URL for this broadcast/AV equipment product:
+
 Manufacturer: ${manufacturer || 'Unknown'}
 Model: ${model || 'Unknown'}
 Product Name: ${productName || 'N/A'}
 
-Return the JSON response only.`
+IMPORTANT RULES:
+1. Only return a URL if you are HIGHLY CONFIDENT it points to an actual product image file
+2. The URL must end in .jpg, .jpeg, .png, .webp, or be a known CDN image URL
+3. DO NOT guess or make up URLs - only return URLs that follow known patterns
+4. If you're not sure, set found to false
+
+Known image URL patterns:
+- Ross Video: Often uses /files/products/ or media.rossvideo.com
+- Blackmagic Design: images.blackmagicdesign.com/...
+- AJA: Often uses /media/ or /images/ paths
+- FS.com: img.fs.com/... or resource URLs ending in image extensions
+
+Return ONLY a JSON object:
+{
+  "found": true/false,
+  "image_url": "direct URL to the image file, or null if not confident",
+  "source": "manufacturer name",
+  "confidence": "high/medium/low/none"
+}
+
+If confidence is "low" or "none", set found to false and image_url to null.`
         }
       ]
     });
@@ -78,11 +73,18 @@ Return the JSON response only.`
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
+
+      // Only return as found if confidence is medium or higher
+      const confidence = result.confidence || 'low';
+      if (confidence === 'low' || confidence === 'none') {
+        return { found: false, error: 'Low confidence - skipping', confidence };
+      }
+
       return {
         found: result.found || false,
         image_url: result.image_url || null,
         source: result.source || null,
-        confidence: result.confidence || 'low'
+        confidence
       };
     }
 
