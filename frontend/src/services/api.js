@@ -90,8 +90,8 @@ export const equipmentApi = {
   unlinkManual: (id, manual_id) => api.post(`/equipment/${id}/unlink-manual`, { manual_id }),
   getWithoutManuals: () => api.get('/equipment/without-manuals/list'),
   // Image management
-  fetchImage: (id) => api.post(`/equipment/${id}/fetch-image`),
-  fetchImagesBulk: () => api.post('/equipment/fetch-images/bulk'),
+  fetchImage: (id) => api.post(`/equipment/${id}/fetch-image`, {}, { timeout: 120000 }),
+  fetchImagesBulk: () => api.post('/equipment/fetch-images/bulk', {}, { timeout: 300000 }),
   getWithoutImages: () => api.get('/equipment/without-images/list'),
   uploadImage: (id, formData) => api.post(`/equipment/${id}/upload-image`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }

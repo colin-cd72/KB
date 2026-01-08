@@ -920,7 +920,7 @@ router.post('/fetch-images/bulk', authenticate, isTechnician, async (req, res, n
          AND manufacturer IS NOT NULL
        GROUP BY manufacturer, model
        ORDER BY equipment_count DESC
-       LIMIT 20`
+       LIMIT 10`
     );
 
     if (uniqueModels.rows.length === 0) {
@@ -973,7 +973,7 @@ router.post('/fetch-images/bulk', authenticate, isTechnician, async (req, res, n
         }
 
         // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
       } catch (err) {
         results.failed++;
