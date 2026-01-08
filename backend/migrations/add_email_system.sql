@@ -20,7 +20,7 @@ ON CONFLICT (id) DO NOTHING;
 -- User email preferences
 CREATE TABLE IF NOT EXISTS user_email_preferences (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   notify_issue_assigned BOOLEAN DEFAULT true,
   notify_issue_updated BOOLEAN DEFAULT true,
   notify_issue_comment BOOLEAN DEFAULT true,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS user_email_preferences (
 -- Email verification tokens
 CREATE TABLE IF NOT EXISTS email_verification_tokens (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   token VARCHAR(255) NOT NULL,
   expires_at TIMESTAMP NOT NULL,
   created_at TIMESTAMP DEFAULT NOW()
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
 -- Password reset tokens
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   token VARCHAR(255) NOT NULL,
   expires_at TIMESTAMP NOT NULL,
   used BOOLEAN DEFAULT false,
