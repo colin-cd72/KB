@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { dashboardApi } from '../services/api';
 import {
   LayoutDashboard,
   AlertCircle,
@@ -17,7 +18,9 @@ import {
   CheckSquare,
   Sparkles,
   ChevronRight,
-  Package
+  Package,
+  Check,
+  Loader2
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -38,9 +41,65 @@ const adminNavigation = [
 function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    setLoadingNotifications(true);
+    try {
+      const response = await dashboardApi.getNotifications({ limit: 10 });
+      setNotifications(response.data.notifications || []);
+      setUnreadCount(response.data.unreadCount || 0);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  // Fetch notifications on mount and periodically
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 60000); // Every minute
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleNotificationClick = async (notification) => {
+    // Mark as read
+    if (!notification.read) {
+      try {
+        await dashboardApi.markNotificationRead(notification.id);
+        setNotifications(prev =>
+          prev.map(n => n.id === notification.id ? { ...n, read: true } : n)
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+
+    // Navigate to related item
+    if (notification.issue_id) {
+      navigate(`/issues/${notification.issue_id}`);
+    }
+    setNotificationsOpen(false);
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await dashboardApi.markAllRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -219,10 +278,85 @@ function Layout() {
           <div className="flex-1 md:hidden" />
 
           {/* Notifications */}
-          <button className="btn-icon relative">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger-500 rounded-full ring-2 ring-white" />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              className="btn-icon relative"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger-500 rounded-full ring-2 ring-white" />
+              )}
+            </button>
+
+            {notificationsOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setNotificationsOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-dark-100 z-20 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-dark-100 flex items-center justify-between">
+                    <h3 className="font-semibold text-dark-900">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-xs text-primary-600 hover:text-primary-700"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {loadingNotifications ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="py-8 text-center text-dark-500">
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No notifications</p>
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <button
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={clsx(
+                            'w-full px-4 py-3 text-left hover:bg-dark-50 border-b border-dark-50 last:border-0 transition-colors',
+                            !notification.read && 'bg-primary-50'
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={clsx(
+                              'w-2 h-2 rounded-full mt-2 flex-shrink-0',
+                              notification.read ? 'bg-dark-300' : 'bg-primary-500'
+                            )} />
+                            <div className="flex-1 min-w-0">
+                              <p className={clsx(
+                                'text-sm',
+                                notification.read ? 'text-dark-600' : 'text-dark-900 font-medium'
+                              )}>
+                                {notification.content}
+                              </p>
+                              <p className="text-xs text-dark-400 mt-1">
+                                {new Date(notification.created_at).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: 'numeric',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* User menu */}
           <div className="relative">
