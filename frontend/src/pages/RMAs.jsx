@@ -18,7 +18,9 @@ import {
   Truck,
   PackageCheck,
   XCircle,
-  Filter
+  Filter,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -58,6 +60,9 @@ function RMAs() {
   const [showEquipmentSuggestions, setShowEquipmentSuggestions] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupSuggestions, setLookupSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const canEdit = user?.role === 'admin' || user?.role === 'technician';
 
@@ -241,6 +246,57 @@ function RMAs() {
         toast.error('Please drop an image file');
       }
     }
+  };
+
+  const handleModelLookup = async () => {
+    const searchTerm = formData.part_number || formData.serial_number;
+    if (!searchTerm) {
+      toast.error('Please enter a part number or serial number first');
+      return;
+    }
+
+    setLookingUp(true);
+    setLookupSuggestions([]);
+    try {
+      const response = await rmasApi.lookupModel(null, searchTerm);
+      const result = response.data;
+
+      if (result.suggestions && result.suggestions.length > 0) {
+        // Check if there's a single high-confidence match
+        const highConfidence = result.suggestions.filter(s => s.confidence === 'high');
+
+        if (highConfidence.length === 1) {
+          // Auto-select the single high-confidence match
+          setFormData(prev => ({
+            ...prev,
+            item_name: highConfidence[0].item_name,
+            part_number: highConfidence[0].part_number || prev.part_number
+          }));
+          toast.success(`Found: ${highConfidence[0].item_name}`);
+        } else {
+          // Show selection dialog for multiple options
+          setLookupSuggestions(result.suggestions);
+          setShowSuggestions(true);
+        }
+      } else {
+        toast.error(result.search_summary || 'No products found for this part number');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to lookup product');
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  const selectSuggestion = (suggestion) => {
+    setFormData(prev => ({
+      ...prev,
+      item_name: suggestion.item_name,
+      part_number: suggestion.part_number || prev.part_number
+    }));
+    setShowSuggestions(false);
+    setLookupSuggestions([]);
+    toast.success(`Selected: ${suggestion.item_name}`);
   };
 
   const handleSubmit = (e) => {
@@ -509,13 +565,28 @@ function RMAs() {
 
                 <div>
                   <label className="label">Part Number</label>
-                  <input
-                    type="text"
-                    value={formData.part_number}
-                    onChange={(e) => setFormData({ ...formData, part_number: e.target.value })}
-                    className="input font-mono"
-                    placeholder="P/N"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.part_number}
+                      onChange={(e) => setFormData({ ...formData, part_number: e.target.value })}
+                      className="input font-mono flex-1"
+                      placeholder="P/N"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleModelLookup}
+                      disabled={lookingUp || (!formData.part_number && !formData.serial_number)}
+                      className="btn btn-secondary flex items-center gap-1 px-3"
+                      title="AI Lookup - Find item name from part/serial number"
+                    >
+                      {lookingUp ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
@@ -618,6 +689,93 @@ function RMAs() {
                   <Plus className="w-5 h-5" />
                 )}
                 Create RMA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Part Number Suggestions Modal */}
+      {showSuggestions && (
+        <div className="modal-overlay" onClick={() => setShowSuggestions(false)}>
+          <div className="modal-content max-w-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary-600" />
+                Select Product
+              </h2>
+              <button onClick={() => setShowSuggestions(false)} className="btn-icon">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p className="text-sm text-dark-500 mb-4">
+                Multiple products found. Select the correct one:
+              </p>
+
+              <div className="space-y-3">
+                {lookupSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => selectSuggestion(suggestion)}
+                    className="w-full p-4 text-left border border-dark-200 rounded-xl hover:border-primary-400 hover:bg-primary-50 transition-all group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-dark-900">{suggestion.item_name}</span>
+                          <span className={clsx(
+                            'text-xs px-2 py-0.5 rounded-full font-medium',
+                            suggestion.confidence === 'high' && 'bg-success-100 text-success-700',
+                            suggestion.confidence === 'medium' && 'bg-warning-100 text-warning-700',
+                            suggestion.confidence === 'low' && 'bg-dark-100 text-dark-600'
+                          )}>
+                            {suggestion.confidence}
+                          </span>
+                        </div>
+                        {suggestion.manufacturer && (
+                          <p className="text-sm text-dark-600">
+                            Manufacturer: {suggestion.manufacturer}
+                          </p>
+                        )}
+                        {suggestion.part_number && (
+                          <p className="text-sm text-dark-500 font-mono">
+                            P/N: {suggestion.part_number}
+                          </p>
+                        )}
+                      </div>
+                      {suggestion.source_url && (
+                        <a
+                          href={suggestion.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-2 text-dark-400 hover:text-primary-600 hover:bg-white rounded-lg"
+                          title="View source"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {lookupSuggestions.length === 0 && (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-12 h-12 mx-auto mb-3 text-dark-300" />
+                  <p className="text-dark-500">No matching products found</p>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button
+                onClick={() => setShowSuggestions(false)}
+                className="btn btn-secondary"
+              >
+                Cancel
               </button>
             </div>
           </div>

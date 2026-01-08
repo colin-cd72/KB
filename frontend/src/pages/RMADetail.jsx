@@ -137,9 +137,22 @@ function RMADetail() {
       resolution: rma.resolution || '',
       resolution_notes: rma.resolution_notes || '',
       tracking_number: rma.tracking_number || '',
-      manufacturer_rma_number: rma.manufacturer_rma_number || ''
+      manufacturer_rma_number: rma.manufacturer_rma_number || '',
+      contact_name: rma.contact_name || '',
+      contact_email: rma.contact_email || '',
+      contact_phone: rma.contact_phone || ''
     });
     setEditing(true);
+  };
+
+  // Calculate days out (from shipped to received, or from shipped to now)
+  const calculateDaysOut = () => {
+    if (!rma.shipped_at) return null;
+    const shippedDate = new Date(rma.shipped_at);
+    const endDate = rma.received_at ? new Date(rma.received_at) : new Date();
+    const diffTime = Math.abs(endDate - shippedDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
   };
 
   const saveEdit = () => {
@@ -379,6 +392,38 @@ function RMADetail() {
                     rows={2}
                   />
                 </div>
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-dark-200">
+                  <div>
+                    <label className="label">Contact Name</label>
+                    <input
+                      type="text"
+                      value={editData.contact_name}
+                      onChange={(e) => setEditData({ ...editData, contact_name: e.target.value })}
+                      className="input"
+                      placeholder="Manufacturer contact"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Contact Email</label>
+                    <input
+                      type="email"
+                      value={editData.contact_email}
+                      onChange={(e) => setEditData({ ...editData, contact_email: e.target.value })}
+                      className="input"
+                      placeholder="email@manufacturer.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Contact Phone</label>
+                    <input
+                      type="text"
+                      value={editData.contact_phone}
+                      onChange={(e) => setEditData({ ...editData, contact_phone: e.target.value })}
+                      className="input"
+                      placeholder="Phone number"
+                    />
+                  </div>
+                </div>
                 <div className="flex items-center gap-2">
                   <button onClick={saveEdit} className="btn btn-primary flex items-center gap-2">
                     <Save className="w-4 h-4" />
@@ -431,6 +476,25 @@ function RMADetail() {
                   <div className="col-span-2">
                     <dt className="text-sm text-dark-500">Resolution Notes</dt>
                     <dd className="text-dark-700">{rma.resolution_notes}</dd>
+                  </div>
+                )}
+                {(rma.contact_name || rma.contact_email || rma.contact_phone) && (
+                  <div className="col-span-2 pt-4 border-t border-dark-100">
+                    <dt className="text-sm text-dark-500 mb-2">Manufacturer Contact</dt>
+                    <dd className="text-dark-700 space-y-1">
+                      {rma.contact_name && <p className="font-medium">{rma.contact_name}</p>}
+                      {rma.contact_email && <p><a href={`mailto:${rma.contact_email}`} className="text-primary-600 hover:underline">{rma.contact_email}</a></p>}
+                      {rma.contact_phone && <p>{rma.contact_phone}</p>}
+                    </dd>
+                  </div>
+                )}
+                {calculateDaysOut() !== null && (
+                  <div>
+                    <dt className="text-sm text-dark-500">Days Out</dt>
+                    <dd className="font-medium text-dark-900">
+                      {calculateDaysOut()} days
+                      {!rma.received_at && <span className="text-warning-600 ml-1">(ongoing)</span>}
+                    </dd>
                   </div>
                 )}
               </dl>
@@ -656,7 +720,37 @@ function RMADetail() {
               <div className="rma-label">Tracking Number:</div>
               <div className="rma-value">{rma.tracking_number || <span className="rma-value-box"></span>}</div>
             </div>
+            {calculateDaysOut() !== null && (
+              <div className="rma-row">
+                <div className="rma-label">Days Out:</div>
+                <div className="rma-value">{calculateDaysOut()} days {!rma.received_at && '(ongoing)'}</div>
+              </div>
+            )}
           </div>
+
+          {(rma.contact_name || rma.contact_email || rma.contact_phone) && (
+            <div className="rma-section">
+              <div className="rma-section-title">Manufacturer Contact</div>
+              {rma.contact_name && (
+                <div className="rma-row">
+                  <div className="rma-label">Contact Name:</div>
+                  <div className="rma-value">{rma.contact_name}</div>
+                </div>
+              )}
+              {rma.contact_email && (
+                <div className="rma-row">
+                  <div className="rma-label">Email:</div>
+                  <div className="rma-value">{rma.contact_email}</div>
+                </div>
+              )}
+              {rma.contact_phone && (
+                <div className="rma-row">
+                  <div className="rma-label">Phone:</div>
+                  <div className="rma-value">{rma.contact_phone}</div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rma-section">
             <div className="rma-section-title">Description</div>
@@ -698,6 +792,20 @@ function RMADetail() {
                   <div className="rma-value">{rma.resolution_notes}</div>
                 </div>
               )}
+            </div>
+          )}
+
+          {rma.notes?.length > 0 && (
+            <div className="rma-section">
+              <div className="rma-section-title">Notes / Activity Log</div>
+              {rma.notes.map((note, idx) => (
+                <div key={idx} style={{ marginBottom: '8px', paddingLeft: '10px', borderLeft: '2px solid #ccc' }}>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    {note.user_name} - {new Date(note.created_at).toLocaleString()}
+                  </div>
+                  <div>{note.content}</div>
+                </div>
+              ))}
             </div>
           )}
 

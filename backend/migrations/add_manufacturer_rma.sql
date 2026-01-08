@@ -1,2 +1,7 @@
 -- Add manufacturer RMA number field
 ALTER TABLE rmas ADD COLUMN IF NOT EXISTS manufacturer_rma_number TEXT DEFAULT NULL;
+
+-- Add RMA contact fields
+ALTER TABLE rmas ADD COLUMN IF NOT EXISTS contact_name TEXT DEFAULT NULL;
+ALTER TABLE rmas ADD COLUMN IF NOT EXISTS contact_email TEXT DEFAULT NULL;
+ALTER TABLE rmas ADD COLUMN IF NOT EXISTS contact_phone TEXT DEFAULT NULL;

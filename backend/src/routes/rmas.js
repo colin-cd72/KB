@@ -206,7 +206,10 @@ router.put('/:id', authenticate, isTechnician, async (req, res, next) => {
       resolution,
       resolution_notes,
       tracking_number,
-      manufacturer_rma_number
+      manufacturer_rma_number,
+      contact_name,
+      contact_email,
+      contact_phone
     } = req.body;
 
     // Get current RMA
@@ -227,10 +230,13 @@ router.put('/:id', authenticate, isTechnician, async (req, res, next) => {
         resolution_notes = COALESCE($8, resolution_notes),
         tracking_number = COALESCE($9, tracking_number),
         manufacturer_rma_number = COALESCE($10, manufacturer_rma_number),
+        contact_name = COALESCE($11, contact_name),
+        contact_email = COALESCE($12, contact_email),
+        contact_phone = COALESCE($13, contact_phone),
         updated_at = NOW()
-      WHERE id = $11
+      WHERE id = $14
       RETURNING *
-    `, [item_name, serial_number, part_number, equipment_id || null, reason, description, resolution, resolution_notes, tracking_number, manufacturer_rma_number, id]);
+    `, [item_name, serial_number, part_number, equipment_id || null, reason, description, resolution, resolution_notes, tracking_number, manufacturer_rma_number, contact_name, contact_email, contact_phone, id]);
 
     // Log update
     await query(`
@@ -487,6 +493,103 @@ router.delete('/:id', authenticate, isAdmin, async (req, res, next) => {
 
     res.json({ success: true });
   } catch (error) {
+    next(error);
+  }
+});
+
+// AI lookup product info from model/part number with web search verification
+router.post('/lookup-model', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const { model_number, part_number } = req.body;
+
+    if (!model_number && !part_number) {
+      return res.status(400).json({ error: 'Model number or part number is required' });
+    }
+
+    const apiKey = process.env.CLAUDE_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'AI features not configured. Please add Claude API key in Settings.' });
+    }
+
+    const searchTerm = model_number || part_number;
+    const client = new Anthropic({ apiKey });
+
+    // Use web search to find and verify the part number
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+          max_uses: 3
+        }
+      ],
+      messages: [
+        {
+          role: 'user',
+          content: `Search for this part/model number: "${searchTerm}"
+
+I need you to:
+1. Search the web to find what product this part number belongs to
+2. Verify the results are real products that actually exist
+3. If you find multiple possible matches, list them all
+4. Include the source URLs where you found the information
+
+After searching, respond with ONLY valid JSON in this exact format:
+{
+  "suggestions": [
+    {
+      "item_name": "Full Product Name",
+      "manufacturer": "Brand/Manufacturer",
+      "part_number": "The actual part number",
+      "confidence": "high/medium/low",
+      "source_url": "URL where you found this"
+    }
+  ],
+  "search_summary": "Brief explanation of what you found"
+}
+
+Rules:
+- Only include products you actually found in search results with real URLs
+- "high" confidence = exact part number match found on manufacturer or retailer site
+- "medium" confidence = partial match or found on forum/secondary source
+- "low" confidence = uncertain match, might be similar product
+- If nothing found, return empty suggestions array
+- List up to 5 possible matches, ordered by confidence`
+        }
+      ]
+    });
+
+    // Extract text response (may have web search results interspersed)
+    let responseText = '';
+    for (const block of response.content) {
+      if (block.type === 'text') {
+        responseText += block.text;
+      }
+    }
+
+    // Parse JSON from response
+    let result;
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0]);
+      } else {
+        result = { suggestions: [], search_summary: 'Could not parse response' };
+      }
+    } catch (e) {
+      result = { suggestions: [], search_summary: 'Could not parse response' };
+    }
+
+    // Ensure suggestions array exists
+    if (!result.suggestions) {
+      result.suggestions = [];
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('AI model lookup error:', error);
     next(error);
   }
 });
