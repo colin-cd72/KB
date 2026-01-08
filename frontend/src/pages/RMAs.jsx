@@ -57,6 +57,7 @@ function RMAs() {
   const [equipmentSuggestions, setEquipmentSuggestions] = useState([]);
   const [showEquipmentSuggestions, setShowEquipmentSuggestions] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const canEdit = user?.role === 'admin' || user?.role === 'technician';
 
@@ -202,6 +203,43 @@ function RMAs() {
       toast.error(error.response?.data?.error || 'Failed to analyze image');
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        // Create a fake event to reuse handleImageUpload
+        const fakeEvent = { target: { files: [file] } };
+        handleImageUpload(fakeEvent);
+      } else {
+        toast.error('Please drop an image file');
+      }
     }
   };
 
@@ -402,15 +440,28 @@ function RMAs() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
+                    <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full py-8 border-2 border-dashed border-dark-300 rounded-xl hover:border-primary-500 hover:bg-white transition-colors"
+                      onDragEnter={handleDragEnter}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={clsx(
+                        'w-full py-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors',
+                        isDragging
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-dark-300 hover:border-primary-500 hover:bg-white'
+                      )}
                     >
-                      <Camera className="w-10 h-10 mx-auto mb-2 text-dark-400" />
-                      <p className="text-sm font-medium text-dark-700">Click to upload part photo</p>
+                      <Upload className={clsx(
+                        'w-10 h-10 mx-auto mb-2',
+                        isDragging ? 'text-primary-500' : 'text-dark-400'
+                      )} />
+                      <p className="text-sm font-medium text-dark-700">
+                        {isDragging ? 'Drop image here!' : 'Click or drag to upload part photo'}
+                      </p>
                       <p className="text-xs text-dark-500 mt-1">AI will auto-detect part info</p>
-                    </button>
+                    </div>
                   )}
 
                   {analysisResult && (
