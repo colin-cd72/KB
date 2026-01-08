@@ -37,6 +37,10 @@ function Todos() {
     category_id: '',
     equipment_id: ''
   });
+  const [equipmentSearch, setEquipmentSearch] = useState('');
+  const [equipmentSuggestions, setEquipmentSuggestions] = useState([]);
+  const [showEquipmentSuggestions, setShowEquipmentSuggestions] = useState(false);
+  const [selectedEquipment, setSelectedEquipment] = useState(null);
 
   const { data: todos, isLoading } = useQuery({
     queryKey: ['todos', showCompleted, filterAssigned],
@@ -126,6 +130,9 @@ function Todos() {
       category_id: '',
       equipment_id: ''
     });
+    setEquipmentSearch('');
+    setEquipmentSuggestions([]);
+    setSelectedEquipment(null);
   };
 
   const handleEdit = (todo) => {
@@ -138,8 +145,47 @@ function Todos() {
       category_id: todo.category_id || '',
       equipment_id: todo.equipment_id || ''
     });
+    // Set equipment if editing
+    if (todo.equipment_id && todo.equipment_name) {
+      setSelectedEquipment({ id: todo.equipment_id, name: todo.equipment_name });
+      setEquipmentSearch(todo.equipment_name);
+    } else {
+      setSelectedEquipment(null);
+      setEquipmentSearch('');
+    }
     setEditingTodo(todo);
     setShowForm(true);
+  };
+
+  const handleEquipmentSearch = async (value) => {
+    setEquipmentSearch(value);
+    setShowEquipmentSuggestions(true);
+
+    if (value.length < 2) {
+      setEquipmentSuggestions([]);
+      return;
+    }
+
+    try {
+      const response = await equipmentApi.getAll({ search: value, limit: 10 });
+      setEquipmentSuggestions(response.data.equipment || []);
+    } catch (error) {
+      console.error('Failed to search equipment:', error);
+      setEquipmentSuggestions([]);
+    }
+  };
+
+  const selectEquipment = (eq) => {
+    setSelectedEquipment(eq);
+    setFormData({ ...formData, equipment_id: eq.id });
+    setEquipmentSearch(`${eq.serial_number || ''} - ${eq.model || eq.name}`);
+    setShowEquipmentSuggestions(false);
+  };
+
+  const clearEquipment = () => {
+    setSelectedEquipment(null);
+    setFormData({ ...formData, equipment_id: '' });
+    setEquipmentSearch('');
   };
 
   const handleSubmit = (e) => {
@@ -448,16 +494,61 @@ function Todos() {
 
               <div>
                 <label className="label">Related Equipment</label>
-                <select
-                  value={formData.equipment_id}
-                  onChange={(e) => setFormData({ ...formData, equipment_id: e.target.value })}
-                  className="input"
-                >
-                  <option value="">None</option>
-                  {equipment?.map((eq) => (
-                    <option key={eq.id} value={eq.id}>{eq.name}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  {selectedEquipment ? (
+                    <div className="input flex items-center justify-between bg-primary-50 border-primary-200">
+                      <div>
+                        <span className="font-medium text-gray-900">{selectedEquipment.name}</span>
+                        {selectedEquipment.serial_number && (
+                          <span className="text-gray-500 ml-2">S/N: {selectedEquipment.serial_number}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearEquipment}
+                        className="p-1 hover:bg-primary-100 rounded"
+                      >
+                        <X className="w-4 h-4 text-gray-500" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        value={equipmentSearch}
+                        onChange={(e) => handleEquipmentSearch(e.target.value)}
+                        onFocus={() => equipmentSearch.length >= 2 && setShowEquipmentSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowEquipmentSuggestions(false), 200)}
+                        className="input"
+                        placeholder="Type serial number or model to search..."
+                      />
+                      {showEquipmentSuggestions && equipmentSuggestions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          {equipmentSuggestions.map((eq) => (
+                            <button
+                              key={eq.id}
+                              type="button"
+                              onClick={() => selectEquipment(eq)}
+                              className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                            >
+                              <div className="font-medium text-gray-900">{eq.name}</div>
+                              <div className="text-sm text-gray-500">
+                                {eq.serial_number && <span>S/N: {eq.serial_number}</span>}
+                                {eq.model && <span className="ml-2">Model: {eq.model}</span>}
+                                {eq.location && <span className="ml-2">• {eq.location}</span>}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {showEquipmentSuggestions && equipmentSearch.length >= 2 && equipmentSuggestions.length === 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                          No equipment found
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
