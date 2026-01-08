@@ -53,6 +53,10 @@ function RMAs() {
     description: ''
   });
   const [analyzedImagePath, setAnalyzedImagePath] = useState(null);
+  const [equipmentSearch, setEquipmentSearch] = useState('');
+  const [equipmentSuggestions, setEquipmentSuggestions] = useState([]);
+  const [showEquipmentSuggestions, setShowEquipmentSuggestions] = useState(false);
+  const [selectedEquipment, setSelectedEquipment] = useState(null);
 
   const canEdit = user?.role === 'admin' || user?.role === 'technician';
 
@@ -118,6 +122,40 @@ function RMAs() {
     setAnalysisResult(null);
     setPreviewImage(null);
     setAnalyzedImagePath(null);
+    setEquipmentSearch('');
+    setEquipmentSuggestions([]);
+    setSelectedEquipment(null);
+  };
+
+  const handleEquipmentSearch = async (value) => {
+    setEquipmentSearch(value);
+    setShowEquipmentSuggestions(true);
+
+    if (value.length < 2) {
+      setEquipmentSuggestions([]);
+      return;
+    }
+
+    try {
+      const response = await equipmentApi.getAll({ search: value, limit: 10 });
+      setEquipmentSuggestions(response.data.equipment || []);
+    } catch (error) {
+      console.error('Failed to search equipment:', error);
+      setEquipmentSuggestions([]);
+    }
+  };
+
+  const selectEquipment = (eq) => {
+    setSelectedEquipment(eq);
+    setFormData({ ...formData, equipment_id: eq.id });
+    setEquipmentSearch(`${eq.serial_number || ''} - ${eq.model || eq.name}`);
+    setShowEquipmentSuggestions(false);
+  };
+
+  const clearEquipment = () => {
+    setSelectedEquipment(null);
+    setFormData({ ...formData, equipment_id: '' });
+    setEquipmentSearch('');
   };
 
   const handleImageUpload = async (e) => {
@@ -431,16 +469,62 @@ function RMAs() {
 
                 <div className="md:col-span-2">
                   <label className="label">Link to Equipment (Optional)</label>
-                  <select
-                    value={formData.equipment_id}
-                    onChange={(e) => setFormData({ ...formData, equipment_id: e.target.value })}
-                    className="input"
-                  >
-                    <option value="">Select equipment...</option>
-                    {equipment?.map((eq) => (
-                      <option key={eq.id} value={eq.id}>{eq.name} - {eq.serial_number}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    {selectedEquipment ? (
+                      <div className="input flex items-center justify-between bg-primary-50 border-primary-200">
+                        <div>
+                          <span className="font-medium text-dark-900">{selectedEquipment.name}</span>
+                          <span className="text-dark-500 ml-2">
+                            {selectedEquipment.serial_number && `S/N: ${selectedEquipment.serial_number}`}
+                            {selectedEquipment.model && ` • ${selectedEquipment.model}`}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearEquipment}
+                          className="p-1 hover:bg-primary-100 rounded"
+                        >
+                          <X className="w-4 h-4 text-dark-500" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          value={equipmentSearch}
+                          onChange={(e) => handleEquipmentSearch(e.target.value)}
+                          onFocus={() => equipmentSearch.length >= 2 && setShowEquipmentSuggestions(true)}
+                          onBlur={() => setTimeout(() => setShowEquipmentSuggestions(false), 200)}
+                          className="input"
+                          placeholder="Type serial number or model to search..."
+                        />
+                        {showEquipmentSuggestions && equipmentSuggestions.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-dark-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            {equipmentSuggestions.map((eq) => (
+                              <button
+                                key={eq.id}
+                                type="button"
+                                onClick={() => selectEquipment(eq)}
+                                className="w-full px-4 py-3 text-left hover:bg-dark-50 border-b border-dark-100 last:border-0"
+                              >
+                                <div className="font-medium text-dark-900">{eq.name}</div>
+                                <div className="text-sm text-dark-500">
+                                  {eq.serial_number && <span>S/N: {eq.serial_number}</span>}
+                                  {eq.model && <span className="ml-2">Model: {eq.model}</span>}
+                                  {eq.location && <span className="ml-2">• {eq.location}</span>}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {showEquipmentSuggestions && equipmentSearch.length >= 2 && equipmentSuggestions.length === 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-dark-200 rounded-lg shadow-lg p-4 text-center text-dark-500">
+                            No equipment found
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
