@@ -98,14 +98,21 @@ Return the JSON response only.`
 async function downloadImage(imageUrl, destinationDir) {
   return new Promise((resolve, reject) => {
     try {
+      // Validate URL
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(imageUrl);
+      } catch (e) {
+        return reject(new Error('Invalid URL'));
+      }
+
       // Ensure destination directory exists
       if (!fs.existsSync(destinationDir)) {
         fs.mkdirSync(destinationDir, { recursive: true });
       }
 
       // Determine file extension from URL
-      const urlPath = new URL(imageUrl).pathname;
-      let ext = path.extname(urlPath).toLowerCase();
+      let ext = path.extname(parsedUrl.pathname).toLowerCase();
       if (!ext || !['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) {
         ext = '.jpg'; // Default to jpg
       }
@@ -118,15 +125,17 @@ async function downloadImage(imageUrl, destinationDir) {
 
       const request = protocol.get(imageUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'image/*'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': parsedUrl.origin
         },
         timeout: 15000
       }, (response) => {
         // Handle redirects
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           file.close();
-          fs.unlinkSync(filepath);
+          if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
           return downloadImage(response.headers.location, destinationDir)
             .then(resolve)
             .catch(reject);
@@ -134,7 +143,7 @@ async function downloadImage(imageUrl, destinationDir) {
 
         if (response.statusCode !== 200) {
           file.close();
-          fs.unlinkSync(filepath);
+          if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
           return reject(new Error(`HTTP ${response.statusCode}`));
         }
 
@@ -143,16 +152,20 @@ async function downloadImage(imageUrl, destinationDir) {
         file.on('finish', () => {
           file.close();
           // Verify it's a valid image (check file size)
-          const stats = fs.statSync(filepath);
-          if (stats.size < 1000) {
-            fs.unlinkSync(filepath);
-            return reject(new Error('Downloaded file too small, likely not an image'));
+          try {
+            const stats = fs.statSync(filepath);
+            if (stats.size < 1000) {
+              fs.unlinkSync(filepath);
+              return reject(new Error('Downloaded file too small, likely not an image'));
+            }
+            resolve({
+              filename,
+              filepath,
+              size: stats.size
+            });
+          } catch (e) {
+            reject(new Error('Failed to verify downloaded file'));
           }
-          resolve({
-            filename,
-            filepath,
-            size: stats.size
-          });
         });
       });
 

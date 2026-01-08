@@ -88,6 +88,7 @@ function Equipment() {
   // Image management state
   const [fetchingImage, setFetchingImage] = useState(false);
   const [bulkFetchingImages, setBulkFetchingImages] = useState(false);
+  const imageInputRef = useRef(null);
 
   const { data: equipmentData, isLoading } = useQuery({
     queryKey: ['equipment', page, search, sortBy, sortOrder],
@@ -397,19 +398,50 @@ function Equipment() {
   };
 
   const handleBulkFetchImages = async () => {
-    if (!confirm('This will fetch images for all equipment without images. This may take a while. Continue?')) return;
+    if (!confirm('This will attempt to fetch images for equipment without images. Some may fail due to website restrictions. Continue?')) return;
     setBulkFetchingImages(true);
     const toastId = toast.loading('Fetching images... This may take a few minutes');
     try {
       const response = await equipmentApi.fetchImagesBulk();
       toast.dismiss(toastId);
-      toast.success(`Fetched ${response.data.success} images, ${response.data.failed} failed`);
+      if (response.data.success > 0) {
+        toast.success(`Fetched ${response.data.success} images, ${response.data.failed} failed`);
+      } else if (response.data.processed === 0) {
+        toast.success('All equipment already has images');
+      } else {
+        toast.error(`Could not fetch images (${response.data.failed} failed). Try uploading manually.`);
+      }
       queryClient.invalidateQueries(['equipment']);
     } catch (error) {
       toast.dismiss(toastId);
       toast.error('Bulk image fetch failed');
     } finally {
       setBulkFetchingImages(false);
+    }
+  };
+
+  const handleImageUpload = async (e, equipmentId) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('applyToSameModel', 'true');
+
+    setFetchingImage(true);
+    try {
+      const response = await equipmentApi.uploadImage(equipmentId, formData);
+      if (response.data.success) {
+        toast.success('Image uploaded successfully');
+        const detailResponse = await equipmentApi.getOne(equipmentId);
+        setEquipmentDetails(detailResponse.data);
+        queryClient.invalidateQueries(['equipment']);
+      }
+    } catch (error) {
+      toast.error('Failed to upload image');
+    } finally {
+      setFetchingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = '';
     }
   };
 
@@ -788,18 +820,39 @@ function Equipment() {
                   </div>
                 )}
                 {canEdit && !equipmentDetails?.equipment?.image_path && (
-                  <button
-                    onClick={() => handleFetchImage(selectedEquipment.id)}
-                    disabled={fetchingImage}
-                    className="absolute -bottom-2 -right-2 p-1.5 bg-primary-600 text-white rounded-full hover:bg-primary-700 shadow-lg"
-                    title="Fetch product image"
-                  >
-                    {fetchingImage ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Download className="w-4 h-4" />
-                    )}
-                  </button>
+                  <div className="absolute -bottom-2 -right-2 flex gap-1">
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e, selectedEquipment.id)}
+                    />
+                    <button
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={fetchingImage}
+                      className="p-1.5 bg-green-600 text-white rounded-full hover:bg-green-700 shadow-lg"
+                      title="Upload image"
+                    >
+                      {fetchingImage ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleFetchImage(selectedEquipment.id)}
+                      disabled={fetchingImage}
+                      className="p-1.5 bg-primary-600 text-white rounded-full hover:bg-primary-700 shadow-lg"
+                      title="Auto-fetch from web"
+                    >
+                      {fetchingImage ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="flex-1 min-w-0">

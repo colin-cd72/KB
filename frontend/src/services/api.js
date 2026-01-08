@@ -93,6 +93,9 @@ export const equipmentApi = {
   fetchImage: (id) => api.post(`/equipment/${id}/fetch-image`),
   fetchImagesBulk: () => api.post('/equipment/fetch-images/bulk'),
   getWithoutImages: () => api.get('/equipment/without-images/list'),
+  uploadImage: (id, formData) => api.post(`/equipment/${id}/upload-image`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
 };
 
 export const categoriesApi = {

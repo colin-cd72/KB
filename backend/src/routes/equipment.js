@@ -898,6 +898,14 @@ router.post('/:id/fetch-image', authenticate, isTechnician, async (req, res, nex
 
 // Bulk fetch images for equipment without images (efficient - groups by model)
 router.post('/fetch-images/bulk', authenticate, isTechnician, async (req, res, next) => {
+  const results = {
+    processed: 0,
+    success: 0,
+    failed: 0,
+    skipped: 0,
+    details: []
+  };
+
   try {
     // Get unique manufacturer/model combinations without images
     const uniqueModels = await query(
@@ -911,18 +919,20 @@ router.post('/fetch-images/bulk', authenticate, isTechnician, async (req, res, n
          AND model IS NOT NULL
          AND manufacturer IS NOT NULL
        GROUP BY manufacturer, model
-       ORDER BY equipment_count DESC`
+       ORDER BY equipment_count DESC
+       LIMIT 20`
     );
 
-    const results = {
-      processed: 0,
-      success: 0,
-      failed: 0,
-      skipped: 0,
-      details: []
-    };
+    if (uniqueModels.rows.length === 0) {
+      return res.json({ ...results, message: 'No equipment without images found' });
+    }
 
     const uploadDir = path.join(__dirname, '../../uploads/equipment');
+
+    // Ensure upload directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
 
     for (const row of uniqueModels.rows) {
       results.processed++;
@@ -958,12 +968,12 @@ router.post('/fetch-images/bulk', authenticate, isTechnician, async (req, res, n
           results.details.push({
             manufacturer: row.manufacturer,
             model: row.model,
-            error: fetchResult.error
+            error: fetchResult.error || 'Image not found'
           });
         }
 
         // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
       } catch (err) {
         results.failed++;
@@ -975,8 +985,85 @@ router.post('/fetch-images/bulk', authenticate, isTechnician, async (req, res, n
       }
     }
 
+    // Always return results, even partial
     res.json(results);
   } catch (error) {
+    // Return partial results even on error
+    results.error = error.message;
+    res.json(results);
+  }
+});
+
+// Upload image manually for equipment
+const equipmentImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(__dirname, '../../uploads/equipment');
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${require('uuid').v4()}${ext}`);
+    }
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
+
+// Upload image for equipment manually
+router.post('/:id/upload-image', authenticate, isTechnician, equipmentImageUpload.single('image'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const equipmentResult = await query(
+      'SELECT * FROM equipment WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (equipmentResult.rows.length === 0) {
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Equipment not found' });
+    }
+
+    const equipment = equipmentResult.rows[0];
+    const imagePath = `/uploads/equipment/${req.file.filename}`;
+
+    // Update this equipment
+    await query(
+      'UPDATE equipment SET image_path = $1 WHERE id = $2',
+      [imagePath, req.params.id]
+    );
+
+    // Optionally update other equipment with same manufacturer/model
+    if (req.body.applyToSameModel === 'true' && equipment.manufacturer && equipment.model) {
+      await query(
+        `UPDATE equipment SET image_path = $1
+         WHERE manufacturer = $2 AND model = $3 AND image_path IS NULL AND id != $4`,
+        [imagePath, equipment.manufacturer, equipment.model, req.params.id]
+      );
+    }
+
+    res.json({
+      success: true,
+      image_path: imagePath
+    });
+  } catch (error) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
     next(error);
   }
 });
