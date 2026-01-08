@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { issuesApi, solutionsApi } from '../services/api';
+import { issuesApi, solutionsApi, searchApi, categoriesApi } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import {
   ArrowLeft,
@@ -14,7 +14,10 @@ import {
   Send,
   Eye,
   History,
-  Plus
+  Plus,
+  Bot,
+  Loader2,
+  MessageCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -26,6 +29,13 @@ function IssueDetail() {
   const { user } = useAuthStore();
   const [newSolution, setNewSolution] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+
+  // AI conversation state
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [sendingAnswer, setSendingAnswer] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState([]);
 
   const { data: issue, isLoading } = useQuery({
     queryKey: ['issue', id],
@@ -50,6 +60,22 @@ function IssueDetail() {
       return response.data.history;
     },
     enabled: showHistory,
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const response = await categoriesApi.getAll();
+      return response.data.flat;
+    },
+  });
+
+  const updateCategory = useMutation({
+    mutationFn: (category_id) => issuesApi.update(id, { category_id: category_id || null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['issue', id]);
+      toast.success('Category updated');
+    },
   });
 
   const addSolution = useMutation({
@@ -92,6 +118,79 @@ function IssueDetail() {
       navigate('/issues');
     },
   });
+
+  // Load AI conversation from issue when it loads
+  useEffect(() => {
+    if (issue?.ai_conversation && issue.ai_conversation.length > 0) {
+      setChatMessages(issue.ai_conversation);
+      // Build conversation history for Claude format
+      const history = issue.ai_conversation.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      setConversationHistory(history);
+    }
+  }, [issue?.ai_conversation]);
+
+  // Continue AI conversation
+  const sendAIMessage = async () => {
+    if (!userAnswer.trim() || sendingAnswer) return;
+
+    const answer = userAnswer.trim();
+    setUserAnswer('');
+    setSendingAnswer(true);
+
+    // Add user message to chat
+    const newUserMessage = { role: 'user', content: answer };
+    setChatMessages(prev => [...prev, newUserMessage]);
+
+    try {
+      const response = await searchApi.continueConversation({
+        answer,
+        conversationHistory
+      });
+
+      const newAIMessage = { role: 'assistant', content: response.data.aiSuggestion };
+      setChatMessages(prev => [...prev, newAIMessage]);
+      setConversationHistory(response.data.conversationHistory || []);
+
+      // Save updated conversation to issue
+      const updatedMessages = [...chatMessages, newUserMessage, newAIMessage];
+      await issuesApi.updateAIConversation(id, updatedMessages);
+    } catch (error) {
+      console.error('Failed to continue conversation:', error);
+      toast.error('Failed to get AI response');
+    } finally {
+      setSendingAnswer(false);
+    }
+  };
+
+  // Start new AI conversation for this issue
+  const startAIConversation = async () => {
+    if (!issue) return;
+    setSendingAnswer(true);
+
+    try {
+      const response = await searchApi.similarIssues({
+        title: issue.title,
+        description: issue.description
+      });
+
+      if (response.data.aiSuggestion) {
+        const initialMessage = { role: 'assistant', content: response.data.aiSuggestion };
+        setChatMessages([initialMessage]);
+        setConversationHistory(response.data.conversationHistory || []);
+
+        // Save to issue
+        await issuesApi.updateAIConversation(id, [initialMessage]);
+      }
+    } catch (error) {
+      console.error('Failed to start AI conversation:', error);
+      toast.error('Failed to get AI suggestions');
+    } finally {
+      setSendingAnswer(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -273,13 +372,125 @@ function IssueDetail() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* AI Assistant */}
+          <div className="card overflow-hidden border-primary-100">
+            <button
+              onClick={() => setShowAIChat(!showAIChat)}
+              className="w-full px-4 py-3 bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-between hover:from-primary-100 hover:to-accent-100"
+            >
+              <div className="flex items-center gap-2">
+                <Bot className="w-5 h-5 text-primary-600" />
+                <span className="font-semibold text-primary-900">AI Assistant</span>
+              </div>
+              <MessageCircle className="w-5 h-5 text-primary-500" />
+            </button>
+
+            {showAIChat && (
+              <div className="flex flex-col" style={{ maxHeight: '400px' }}>
+                {/* Chat Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {chatMessages.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-gray-500 mb-3">
+                        Get AI-powered suggestions for this issue
+                      </p>
+                      <button
+                        onClick={startAIConversation}
+                        disabled={sendingAnswer}
+                        className="btn btn-primary text-sm"
+                      >
+                        {sendingAnswer ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Bot className="w-4 h-4 mr-1" />
+                            Get AI Suggestions
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      {chatMessages.map((msg, idx) => (
+                        <div
+                          key={idx}
+                          className={clsx(
+                            'flex',
+                            msg.role === 'user' ? 'justify-end' : 'justify-start'
+                          )}
+                        >
+                          <div
+                            className={clsx(
+                              'max-w-[90%] rounded-lg p-2 text-sm',
+                              msg.role === 'user'
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-gray-100 text-gray-800'
+                            )}
+                          >
+                            <div className="whitespace-pre-wrap text-xs">{msg.content}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {sendingAnswer && (
+                        <div className="flex justify-start">
+                          <div className="bg-gray-100 rounded-lg p-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Input */}
+                {chatMessages.length > 0 && (
+                  <div className="p-3 border-t border-gray-200">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={userAnswer}
+                        onChange={(e) => setUserAnswer(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendAIMessage()}
+                        placeholder="Ask a follow-up..."
+                        className="input flex-1 text-sm py-2"
+                        disabled={sendingAnswer}
+                      />
+                      <button
+                        onClick={sendAIMessage}
+                        disabled={!userAnswer.trim() || sendingAnswer}
+                        className="btn btn-primary px-3 py-2"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Details */}
           <div className="card p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Details</h2>
             <dl className="space-y-3 text-sm">
               <div>
                 <dt className="text-gray-500">Category</dt>
-                <dd className="mt-1 font-medium">{issue.category_name || 'None'}</dd>
+                <dd className="mt-1">
+                  {canEdit ? (
+                    <select
+                      value={issue.category_id || ''}
+                      onChange={(e) => updateCategory.mutate(e.target.value)}
+                      className="input py-1 text-sm"
+                    >
+                      <option value="">None</option>
+                      {categories?.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="font-medium">{issue.category_name || 'None'}</span>
+                  )}
+                </dd>
               </div>
               <div>
                 <dt className="text-gray-500">Equipment</dt>

@@ -206,6 +206,10 @@ function NewIssue() {
     if (equipmentId) {
       data.equipment_id = equipmentId;
     }
+    // Include AI conversation if there was one
+    if (chatMessages.length > 0) {
+      data.ai_conversation = chatMessages;
+    }
     createIssue.mutate(data);
   };
 

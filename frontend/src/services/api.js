@@ -40,6 +40,7 @@ export const issuesApi = {
   delete: (id) => api.delete(`/issues/${id}`),
   getHistory: (id) => api.get(`/issues/${id}/history`),
   watch: (id) => api.post(`/issues/${id}/watch`),
+  updateAIConversation: (id, ai_conversation) => api.put(`/issues/${id}/ai-conversation`, { ai_conversation }),
 };
 
 export const solutionsApi = {

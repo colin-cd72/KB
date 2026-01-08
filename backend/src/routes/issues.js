@@ -181,19 +181,20 @@ router.post('/',
     body('category_id').optional().isUUID(),
     body('equipment_id').optional().isUUID(),
     body('assigned_to').optional().isUUID(),
-    body('tags').optional().isArray()
+    body('tags').optional().isArray(),
+    body('ai_conversation').optional().isArray()
   ],
   validate,
   async (req, res, next) => {
     try {
       const issue = await transaction(async (client) => {
-        const { title, description, priority, category_id, equipment_id, assigned_to, tags } = req.body;
+        const { title, description, priority, category_id, equipment_id, assigned_to, tags, ai_conversation } = req.body;
 
         const result = await client.query(
-          `INSERT INTO issues (title, description, priority, category_id, equipment_id, created_by, assigned_to)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `INSERT INTO issues (title, description, priority, category_id, equipment_id, created_by, assigned_to, ai_conversation)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING *`,
-          [title, description, priority || 'medium', category_id, equipment_id, req.user.id, assigned_to]
+          [title, description, priority || 'medium', category_id, equipment_id, req.user.id, assigned_to, ai_conversation ? JSON.stringify(ai_conversation) : null]
         );
 
         const issue = result.rows[0];
@@ -365,6 +366,30 @@ router.post('/:id/watch', authenticate, isViewer, async (req, res, next) => {
       );
       res.json({ watching: true });
     }
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update AI conversation for an issue
+router.put('/:id/ai-conversation', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const { ai_conversation } = req.body;
+
+    if (!ai_conversation || !Array.isArray(ai_conversation)) {
+      return res.status(400).json({ error: 'ai_conversation must be an array' });
+    }
+
+    const result = await query(
+      'UPDATE issues SET ai_conversation = $1 WHERE id = $2 RETURNING ai_conversation',
+      [JSON.stringify(ai_conversation), req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    res.json({ ai_conversation: result.rows[0].ai_conversation });
   } catch (error) {
     next(error);
   }
