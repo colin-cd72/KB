@@ -205,7 +205,8 @@ router.put('/:id', authenticate, isTechnician, async (req, res, next) => {
       description,
       resolution,
       resolution_notes,
-      tracking_number
+      tracking_number,
+      manufacturer_rma_number
     } = req.body;
 
     // Get current RMA
@@ -225,10 +226,11 @@ router.put('/:id', authenticate, isTechnician, async (req, res, next) => {
         resolution = COALESCE($7, resolution),
         resolution_notes = COALESCE($8, resolution_notes),
         tracking_number = COALESCE($9, tracking_number),
+        manufacturer_rma_number = COALESCE($10, manufacturer_rma_number),
         updated_at = NOW()
-      WHERE id = $10
+      WHERE id = $11
       RETURNING *
-    `, [item_name, serial_number, part_number, equipment_id || null, reason, description, resolution, resolution_notes, tracking_number, id]);
+    `, [item_name, serial_number, part_number, equipment_id || null, reason, description, resolution, resolution_notes, tracking_number, manufacturer_rma_number, id]);
 
     // Log update
     await query(`

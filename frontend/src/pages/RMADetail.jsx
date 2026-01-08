@@ -136,7 +136,8 @@ function RMADetail() {
       description: rma.description || '',
       resolution: rma.resolution || '',
       resolution_notes: rma.resolution_notes || '',
-      tracking_number: rma.tracking_number || ''
+      tracking_number: rma.tracking_number || '',
+      manufacturer_rma_number: rma.manufacturer_rma_number || ''
     });
     setEditing(true);
   };
@@ -327,6 +328,16 @@ function RMADetail() {
                       className="input"
                     />
                   </div>
+                  <div>
+                    <label className="label">Manufacturer RMA #</label>
+                    <input
+                      type="text"
+                      value={editData.manufacturer_rma_number}
+                      onChange={(e) => setEditData({ ...editData, manufacturer_rma_number: e.target.value })}
+                      className="input font-mono"
+                      placeholder="RMA # from manufacturer"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="label">Reason</label>
@@ -388,6 +399,12 @@ function RMADetail() {
                   <dt className="text-sm text-dark-500">Part Number</dt>
                   <dd className="font-mono font-medium text-dark-900">{rma.part_number || '-'}</dd>
                 </div>
+                {rma.manufacturer_rma_number && (
+                  <div>
+                    <dt className="text-sm text-dark-500">Manufacturer RMA #</dt>
+                    <dd className="font-mono font-medium text-primary-600">{rma.manufacturer_rma_number}</dd>
+                  </div>
+                )}
                 <div className="col-span-2">
                   <dt className="text-sm text-dark-500">Reason</dt>
                   <dd className="font-medium text-dark-900">{rma.reason}</dd>
@@ -591,19 +608,22 @@ function RMADetail() {
             .rma-section { margin-bottom: 20px; }
             .rma-section-title { font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; }
             .rma-row { display: flex; margin-bottom: 10px; }
-            .rma-label { width: 150px; font-weight: bold; }
+            .rma-label { width: 180px; font-weight: bold; }
             .rma-value { flex: 1; }
-            .rma-description { border: 1px solid #ccc; padding: 10px; min-height: 100px; margin-top: 5px; }
-            .rma-signature { margin-top: 40px; display: flex; justify-content: space-between; }
-            .rma-signature-line { width: 200px; border-top: 1px solid #000; padding-top: 5px; text-align: center; }
+            .rma-value-box { flex: 1; border-bottom: 1px solid #999; min-height: 20px; }
+            .rma-description { border: 1px solid #ccc; padding: 10px; min-height: 80px; margin-top: 5px; }
             .rma-footer { text-align: center; margin-top: 40px; font-size: 12px; color: #666; }
+            .rma-dates { display: flex; gap: 40px; margin-top: 20px; }
+            .rma-date-box { flex: 1; }
+            .rma-checkbox { display: inline-block; width: 14px; height: 14px; border: 1px solid #000; margin-right: 8px; vertical-align: middle; }
+            .rma-checkbox.checked { background: #000; }
           }
         `}</style>
         <div className="rma-form">
           <div className="rma-header">
             <div className="rma-title">TMRW Sports</div>
             <div className="rma-number">{rma.rma_number}</div>
-            <div>Return Merchandise Authorization</div>
+            <div>RMA Details</div>
           </div>
 
           <div className="rma-section">
@@ -623,34 +643,46 @@ function RMADetail() {
           </div>
 
           <div className="rma-section">
-            <div className="rma-section-title">RMA Details</div>
+            <div className="rma-section-title">RMA Information</div>
             <div className="rma-row">
-              <div className="rma-label">Status:</div>
-              <div className="rma-value">{statusConfig?.label}</div>
+              <div className="rma-label">Manufacturer RMA #:</div>
+              <div className="rma-value">{rma.manufacturer_rma_number || <span className="rma-value-box"></span>}</div>
             </div>
             <div className="rma-row">
               <div className="rma-label">Reason:</div>
               <div className="rma-value">{rma.reason}</div>
             </div>
             <div className="rma-row">
-              <div className="rma-label">Created By:</div>
-              <div className="rma-value">{rma.created_by_name}</div>
+              <div className="rma-label">Tracking Number:</div>
+              <div className="rma-value">{rma.tracking_number || <span className="rma-value-box"></span>}</div>
             </div>
-            <div className="rma-row">
-              <div className="rma-label">Created Date:</div>
-              <div className="rma-value">{new Date(rma.created_at).toLocaleDateString()}</div>
-            </div>
-            {rma.tracking_number && (
-              <div className="rma-row">
-                <div className="rma-label">Tracking #:</div>
-                <div className="rma-value">{rma.tracking_number}</div>
-              </div>
-            )}
           </div>
 
           <div className="rma-section">
             <div className="rma-section-title">Description</div>
-            <div className="rma-description">{rma.description || 'No description provided'}</div>
+            <div className="rma-description">{rma.description || ''}</div>
+          </div>
+
+          <div className="rma-section">
+            <div className="rma-section-title">Shipping Status</div>
+            <div className="rma-row">
+              <div className="rma-label">
+                <span className={`rma-checkbox ${rma.shipped_at ? 'checked' : ''}`}></span>
+                Shipped to Manufacturer
+              </div>
+              <div className="rma-value">
+                {rma.shipped_at ? new Date(rma.shipped_at).toLocaleDateString() : '________________'}
+              </div>
+            </div>
+            <div className="rma-row">
+              <div className="rma-label">
+                <span className={`rma-checkbox ${rma.received_at ? 'checked' : ''}`}></span>
+                Returned from Manufacturer
+              </div>
+              <div className="rma-value">
+                {rma.received_at ? new Date(rma.received_at).toLocaleDateString() : '________________'}
+              </div>
+            </div>
           </div>
 
           {rma.resolution && (
@@ -669,13 +701,8 @@ function RMADetail() {
             </div>
           )}
 
-          <div className="rma-signature">
-            <div className="rma-signature-line">Signature</div>
-            <div className="rma-signature-line">Date</div>
-          </div>
-
           <div className="rma-footer">
-            <p>Please include this form with your return shipment.</p>
+            <p>Internal RMA #: {rma.rma_number} | Created: {new Date(rma.created_at).toLocaleDateString()} by {rma.created_by_name}</p>
             <p>Printed: {new Date().toLocaleString()}</p>
           </div>
         </div>
