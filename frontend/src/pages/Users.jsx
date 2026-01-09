@@ -104,7 +104,12 @@ function Users() {
       const data = { name: formData.name, email: formData.email, role: formData.role };
       updateUser.mutate({ id: editingUser.id, data });
     } else {
-      createUser.mutate(formData);
+      // Only include password if provided, otherwise let backend auto-generate
+      const data = { name: formData.name, email: formData.email, role: formData.role };
+      if (formData.password) {
+        data.password = formData.password;
+      }
+      createUser.mutate(data);
     }
   };
 
