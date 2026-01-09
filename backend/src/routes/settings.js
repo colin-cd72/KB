@@ -35,10 +35,12 @@ function writeEnvFile(envVars) {
     const content = Object.entries(envVars)
       .map(([key, value]) => `${key}=${value}`)
       .join('\n');
-    fs.writeFileSync(envPath, content + '\n');
+    fs.writeFileSync(envPath, content + '\n', { mode: 0o600 });
     return true;
   } catch (error) {
-    console.error('Error writing .env:', error);
+    console.error('Error writing .env:', error.message);
+    console.error('Attempted path:', envPath);
+    console.error('File exists:', fs.existsSync(envPath));
     return false;
   }
 }
@@ -294,7 +296,7 @@ router.put('/tracking', authenticate, isAdmin, async (req, res, next) => {
 
     // Write back
     if (!writeEnvFile(envVars)) {
-      return res.status(500).json({ error: 'Failed to save API key' });
+      return res.status(500).json({ error: 'Failed to save API key. Check server file permissions for .env file.' });
     }
 
     // Update process.env for immediate use
@@ -306,6 +308,7 @@ router.put('/tracking', authenticate, isAdmin, async (req, res, next) => {
       api_key_masked: maskApiKey(api_key)
     });
   } catch (error) {
+    console.error('Error updating tracking API key:', error);
     next(error);
   }
 });
