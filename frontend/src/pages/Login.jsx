@@ -221,20 +221,7 @@ function Login() {
               )}
             </button>
 
-            <p className="text-center text-sm text-dark-500">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-primary-600 hover:text-primary-700 font-semibold">
-                Create account
-              </Link>
-            </p>
           </form>
-
-          {/* Demo credentials hint */}
-          <div className="mt-8 p-4 bg-dark-50 rounded-xl border border-dark-100">
-            <p className="text-xs text-dark-500 text-center">
-              Demo: <span className="font-mono text-dark-700">admin@tmrw.com</span> / <span className="font-mono text-dark-700">admin123</span>
-            </p>
-          </div>
         </div>
       </div>
 
