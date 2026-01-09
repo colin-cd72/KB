@@ -168,7 +168,8 @@ router.post('/', authenticate, isTechnician, async (req, res, next) => {
       contact_name,
       contact_email,
       contact_phone,
-      manufacturer_rma_number
+      manufacturer_rma_number,
+      manufacturer
     } = req.body;
 
     if (!item_name || !reason) {
@@ -180,10 +181,10 @@ router.post('/', authenticate, isTechnician, async (req, res, next) => {
     const rma_number = rmaNumberResult.rows[0].rma_number;
 
     const result = await query(`
-      INSERT INTO rmas (rma_number, item_name, serial_number, part_number, equipment_id, reason, description, created_by, contact_name, contact_email, contact_phone, manufacturer_rma_number)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      INSERT INTO rmas (rma_number, item_name, serial_number, part_number, equipment_id, reason, description, created_by, contact_name, contact_email, contact_phone, manufacturer_rma_number, manufacturer)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
-    `, [rma_number, item_name, serial_number, part_number, equipment_id || null, reason, description, req.user.id, contact_name || null, contact_email || null, contact_phone || null, manufacturer_rma_number || null]);
+    `, [rma_number, item_name, serial_number, part_number, equipment_id || null, reason, description, req.user.id, contact_name || null, contact_email || null, contact_phone || null, manufacturer_rma_number || null, manufacturer || null]);
 
     const rma = result.rows[0];
 
@@ -217,7 +218,8 @@ router.put('/:id', authenticate, isTechnician, async (req, res, next) => {
       contact_name,
       contact_email,
       contact_phone,
-      shipped_at
+      shipped_at,
+      manufacturer
     } = req.body;
 
     // Get current RMA
@@ -242,10 +244,11 @@ router.put('/:id', authenticate, isTechnician, async (req, res, next) => {
         contact_email = COALESCE($12, contact_email),
         contact_phone = COALESCE($13, contact_phone),
         shipped_at = COALESCE($14, shipped_at),
+        manufacturer = COALESCE($15, manufacturer),
         updated_at = NOW()
-      WHERE id = $15
+      WHERE id = $16
       RETURNING *
-    `, [item_name, serial_number, part_number, equipment_id || null, reason, description, resolution, resolution_notes, tracking_number, manufacturer_rma_number, contact_name, contact_email, contact_phone, shipped_at || null, id]);
+    `, [item_name, serial_number, part_number, equipment_id || null, reason, description, resolution, resolution_notes, tracking_number, manufacturer_rma_number, contact_name, contact_email, contact_phone, shipped_at || null, manufacturer, id]);
 
     // Log update
     await query(`

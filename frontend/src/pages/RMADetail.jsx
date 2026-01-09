@@ -150,6 +150,7 @@ function RMADetail() {
       item_name: rma.item_name,
       serial_number: rma.serial_number || '',
       part_number: rma.part_number || '',
+      manufacturer: rma.manufacturer || '',
       reason: rma.reason,
       description: rma.description || '',
       resolution: rma.resolution || '',
@@ -373,6 +374,15 @@ function RMADetail() {
                     />
                   </div>
                   <div>
+                    <label className="label">Manufacturer</label>
+                    <input
+                      type="text"
+                      value={editData.manufacturer}
+                      onChange={(e) => setEditData({ ...editData, manufacturer: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
                     <label className="label">Tracking Number</label>
                     <input
                       type="text"
@@ -492,6 +502,10 @@ function RMADetail() {
                 <div>
                   <dt className="text-sm text-dark-500">Part Number</dt>
                   <dd className="font-mono font-medium text-dark-900">{rma.part_number || '-'}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-dark-500">Manufacturer</dt>
+                  <dd className="font-medium text-dark-900">{rma.manufacturer || '-'}</dd>
                 </div>
                 {rma.manufacturer_rma_number && (
                   <div>
@@ -765,6 +779,10 @@ function RMADetail() {
             <div className="rma-row">
               <div className="rma-label">Item Name:</div>
               <div className="rma-value">{rma.item_name}</div>
+            </div>
+            <div className="rma-row">
+              <div className="rma-label">Manufacturer:</div>
+              <div className="rma-value">{rma.manufacturer || 'N/A'}</div>
             </div>
             <div className="rma-row">
               <div className="rma-label">Serial Number:</div>

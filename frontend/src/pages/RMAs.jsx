@@ -56,7 +56,8 @@ function RMAs() {
     contact_name: '',
     contact_email: '',
     contact_phone: '',
-    manufacturer_rma_number: ''
+    manufacturer_rma_number: '',
+    manufacturer: ''
   });
   const [analyzedImagePath, setAnalyzedImagePath] = useState(null);
   const [equipmentSearch, setEquipmentSearch] = useState('');
@@ -143,7 +144,8 @@ function RMAs() {
       contact_name: '',
       contact_email: '',
       contact_phone: '',
-      manufacturer_rma_number: ''
+      manufacturer_rma_number: '',
+      manufacturer: ''
     });
     setAnalysisResult(null);
     setPreviewImage(null);
@@ -293,9 +295,10 @@ function RMAs() {
           setFormData(prev => ({
             ...prev,
             item_name: highConfidence[0].item_name,
-            part_number: highConfidence[0].part_number || prev.part_number
+            part_number: highConfidence[0].part_number || prev.part_number,
+            manufacturer: highConfidence[0].manufacturer || prev.manufacturer
           }));
-          toast.success(`Found: ${highConfidence[0].item_name}`);
+          toast.success(`Found: ${highConfidence[0].item_name} by ${highConfidence[0].manufacturer || 'Unknown'}`);
         } else {
           // Show selection dialog for multiple options
           setLookupSuggestions(result.suggestions);
@@ -315,7 +318,8 @@ function RMAs() {
     setFormData(prev => ({
       ...prev,
       item_name: suggestion.item_name,
-      part_number: suggestion.part_number || prev.part_number
+      part_number: suggestion.part_number || prev.part_number,
+      manufacturer: suggestion.manufacturer || prev.manufacturer
     }));
     setShowSuggestions(false);
     setLookupSuggestions([]);
@@ -708,7 +712,7 @@ function RMAs() {
                       onClick={handleModelLookup}
                       disabled={lookingUp || (!formData.part_number && !formData.serial_number)}
                       className="btn btn-secondary flex items-center gap-1 px-3"
-                      title="AI Lookup - Find item name from part/serial number"
+                      title="AI Lookup - Find item name and manufacturer from part/serial number"
                     >
                       {lookingUp ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -717,6 +721,17 @@ function RMAs() {
                       )}
                     </button>
                   </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="label">Manufacturer</label>
+                  <input
+                    type="text"
+                    value={formData.manufacturer}
+                    onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
+                    className="input"
+                    placeholder="e.g., Dell, HP, Cisco (auto-filled by AI lookup)"
+                  />
                 </div>
 
                 <div className="md:col-span-2">
