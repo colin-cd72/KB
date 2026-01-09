@@ -60,25 +60,31 @@ async function sendIssueReminders() {
 // Send reminders for pending RMAs
 async function sendRMAReminders() {
   try {
-    // Get RMAs that have been shipped but not received for more than 7 days
+    // Get notification settings
+    const settingsResult = await query('SELECT * FROM notification_settings LIMIT 1');
+    const settings = settingsResult.rows[0] || { rma_reminder_days: 30 };
+    const reminderDays = settings.rma_reminder_days || 30;
+
+    // Get RMAs that have been shipped but not received for more than X days
     const result = await query(`
       SELECT r.*, u.name as user_name, u.email
       FROM rmas r
       JOIN users u ON r.created_by = u.id
       WHERE r.status = 'shipped'
-      AND r.shipped_at < NOW() - INTERVAL '7 days'
+      AND r.shipped_at < NOW() - INTERVAL '1 day' * $1
       AND u.email IS NOT NULL
-    `);
+    `, [reminderDays]);
 
     for (const rma of result.rows) {
       // Check if user wants reminders
       const shouldNotify = await shouldNotifyUser(rma.created_by, 'reminder');
       if (!shouldNotify) continue;
 
+      const daysOut = Math.floor((Date.now() - new Date(rma.shipped_at)) / (1000 * 60 * 60 * 24));
       const items = [{
         title: `${rma.rma_number} - ${rma.item_name}`,
         url: `${process.env.FRONTEND_URL || 'https://kb.4tmrw.net'}/rmas/${rma.id}`,
-        status: `Shipped ${Math.floor((Date.now() - new Date(rma.shipped_at)) / (1000 * 60 * 60 * 24))} days ago`
+        status: `Shipped ${daysOut} days ago (over ${reminderDays} day threshold)`
       }];
 
       await sendTemplateEmail('reminder', rma.email, {

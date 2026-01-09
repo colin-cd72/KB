@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
 const { authenticate, isAdmin } = require('../middleware/auth');
+const { query } = require('../config/database');
 
 const router = express.Router();
 
@@ -156,6 +157,82 @@ router.post('/ai/test', authenticate, isAdmin, async (req, res, next) => {
       success: false,
       error: errorMessage
     });
+  }
+});
+
+// Get notification settings (admin only)
+router.get('/notifications', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const result = await query('SELECT * FROM notification_settings LIMIT 1');
+
+    if (result.rows.length === 0) {
+      // Return defaults
+      return res.json({
+        rma_reminder_enabled: true,
+        rma_reminder_days: 30,
+        issue_reminder_enabled: true,
+        weekly_digest_enabled: true,
+        weekly_digest_day: 1,
+        email_on_issue_assigned: true,
+        email_on_issue_updated: true,
+        email_on_rma_status_change: true,
+        daily_reminder_hour: 9,
+        weekly_digest_hour: 8
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update notification settings (admin only)
+router.put('/notifications', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const {
+      rma_reminder_enabled,
+      rma_reminder_days,
+      issue_reminder_enabled,
+      weekly_digest_enabled,
+      weekly_digest_day,
+      email_on_issue_assigned,
+      email_on_issue_updated,
+      email_on_rma_status_change,
+      daily_reminder_hour,
+      weekly_digest_hour
+    } = req.body;
+
+    await query(`
+      UPDATE notification_settings SET
+        rma_reminder_enabled = $1,
+        rma_reminder_days = $2,
+        issue_reminder_enabled = $3,
+        weekly_digest_enabled = $4,
+        weekly_digest_day = $5,
+        email_on_issue_assigned = $6,
+        email_on_issue_updated = $7,
+        email_on_rma_status_change = $8,
+        daily_reminder_hour = $9,
+        weekly_digest_hour = $10,
+        updated_at = NOW()
+      WHERE id = 1
+    `, [
+      rma_reminder_enabled !== false,
+      rma_reminder_days || 30,
+      issue_reminder_enabled !== false,
+      weekly_digest_enabled !== false,
+      weekly_digest_day ?? 1,
+      email_on_issue_assigned !== false,
+      email_on_issue_updated !== false,
+      email_on_rma_status_change !== false,
+      daily_reminder_hour ?? 9,
+      weekly_digest_hour ?? 8
+    ]);
+
+    res.json({ success: true, message: 'Notification settings updated' });
+  } catch (error) {
+    next(error);
   }
 });
 

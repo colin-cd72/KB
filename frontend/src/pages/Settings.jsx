@@ -25,7 +25,9 @@ import {
   Mail,
   Bell,
   Send,
-  Server
+  Server,
+  Sliders,
+  Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -91,6 +93,21 @@ function Settings() {
   });
   const [emailPrefsLoading, setEmailPrefsLoading] = useState(false);
 
+  // Admin Notification Settings state
+  const [notifSettings, setNotifSettings] = useState({
+    rma_reminder_enabled: true,
+    rma_reminder_days: 30,
+    issue_reminder_enabled: true,
+    weekly_digest_enabled: true,
+    weekly_digest_day: 1,
+    email_on_issue_assigned: true,
+    email_on_issue_updated: true,
+    email_on_rma_status_change: true,
+    daily_reminder_hour: 9,
+    weekly_digest_hour: 8
+  });
+  const [notifSettingsLoading, setNotifSettingsLoading] = useState(false);
+
   const isAdmin = user?.role === 'admin';
 
   const profileForm = useForm({
@@ -137,6 +154,13 @@ function Settings() {
       loadEmailPrefs();
     }
   }, [activeTab]);
+
+  // Load admin notification settings
+  useEffect(() => {
+    if (isAdmin && activeTab === 'admin-notifications') {
+      loadNotifSettings();
+    }
+  }, [isAdmin, activeTab]);
 
   const loadCategories = async () => {
     try {
@@ -272,6 +296,30 @@ function Settings() {
       toast.error('Failed to save email preferences');
     } finally {
       setEmailPrefsLoading(false);
+    }
+  };
+
+  const loadNotifSettings = async () => {
+    try {
+      setNotifSettingsLoading(true);
+      const response = await settingsApi.getNotifications();
+      setNotifSettings(response.data);
+    } catch (error) {
+      console.error('Failed to load notification settings:', error);
+    } finally {
+      setNotifSettingsLoading(false);
+    }
+  };
+
+  const handleSaveNotifSettings = async () => {
+    try {
+      setNotifSettingsLoading(true);
+      await settingsApi.updateNotifications(notifSettings);
+      toast.success('Notification settings saved');
+    } catch (error) {
+      toast.error('Failed to save notification settings');
+    } finally {
+      setNotifSettingsLoading(false);
     }
   };
 
@@ -416,6 +464,20 @@ function Settings() {
               >
                 <Mail className="w-4 h-4" />
                 Email Server
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('admin-notifications')}
+                className={clsx(
+                  'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                  activeTab === 'admin-notifications'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-dark-500 hover:text-dark-700'
+                )}
+              >
+                <Sliders className="w-4 h-4" />
+                Notification Rules
               </button>
             )}
             {isAdmin && (
@@ -1070,6 +1132,208 @@ function Settings() {
                         <Save className="w-5 h-5" />
                       )}
                       Save Email Settings
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Admin Notification Rules Tab */}
+          {activeTab === 'admin-notifications' && isAdmin && (
+            <div className="space-y-6">
+              {notifSettingsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+                </div>
+              ) : (
+                <>
+                  <div className="p-4 rounded-xl bg-primary-50 border border-primary-100">
+                    <p className="text-sm text-primary-700">
+                      Configure system-wide notification rules. These settings control when and how automated emails are sent to all users.
+                    </p>
+                  </div>
+
+                  {/* RMA Reminders */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      RMA Reminders
+                    </h3>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Enable RMA Reminders</p>
+                        <p className="text-sm text-dark-500">Send reminders for RMAs that have been shipped but not received</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={notifSettings.rma_reminder_enabled}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, rma_reminder_enabled: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+
+                    <div className="p-4 rounded-xl border border-dark-100">
+                      <label className="label">Days Before Reminder</label>
+                      <p className="text-sm text-dark-500 mb-2">Send reminder when RMA has been shipped for this many days</p>
+                      <input
+                        type="number"
+                        value={notifSettings.rma_reminder_days}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, rma_reminder_days: parseInt(e.target.value) || 30 })}
+                        className="input w-32"
+                        min="1"
+                        max="365"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Issue Reminders */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Bell className="w-4 h-4" />
+                      Issue Reminders
+                    </h3>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Enable Daily Issue Reminders</p>
+                        <p className="text-sm text-dark-500">Send daily reminders to users about their pending assigned issues</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={notifSettings.issue_reminder_enabled}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, issue_reminder_enabled: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+
+                    <div className="p-4 rounded-xl border border-dark-100">
+                      <label className="label">Daily Reminder Time</label>
+                      <p className="text-sm text-dark-500 mb-2">Hour to send daily reminders (24-hour format, server time)</p>
+                      <select
+                        value={notifSettings.daily_reminder_hour}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, daily_reminder_hour: parseInt(e.target.value) })}
+                        className="input w-32"
+                      >
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Weekly Digest */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      Weekly Digest
+                    </h3>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Enable Weekly Digest</p>
+                        <p className="text-sm text-dark-500">Send weekly summary of activity to users who opt in</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={notifSettings.weekly_digest_enabled}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, weekly_digest_enabled: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 rounded-xl border border-dark-100">
+                        <label className="label">Digest Day</label>
+                        <select
+                          value={notifSettings.weekly_digest_day}
+                          onChange={(e) => setNotifSettings({ ...notifSettings, weekly_digest_day: parseInt(e.target.value) })}
+                          className="input"
+                        >
+                          <option value={0}>Sunday</option>
+                          <option value={1}>Monday</option>
+                          <option value={2}>Tuesday</option>
+                          <option value={3}>Wednesday</option>
+                          <option value={4}>Thursday</option>
+                          <option value={5}>Friday</option>
+                          <option value={6}>Saturday</option>
+                        </select>
+                      </div>
+                      <div className="p-4 rounded-xl border border-dark-100">
+                        <label className="label">Digest Time</label>
+                        <select
+                          value={notifSettings.weekly_digest_hour}
+                          onChange={(e) => setNotifSettings({ ...notifSettings, weekly_digest_hour: parseInt(e.target.value) })}
+                          className="input"
+                        >
+                          {Array.from({ length: 24 }, (_, i) => (
+                            <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Email Triggers */}
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Send className="w-4 h-4" />
+                      Email Triggers
+                    </h3>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Issue Assigned</p>
+                        <p className="text-sm text-dark-500">Send email when an issue is assigned to a user</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={notifSettings.email_on_issue_assigned}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, email_on_issue_assigned: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Issue Updated</p>
+                        <p className="text-sm text-dark-500">Send email when a watched issue is updated</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={notifSettings.email_on_issue_updated}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, email_on_issue_updated: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">RMA Status Change</p>
+                        <p className="text-sm text-dark-500">Send email when an RMA status changes</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={notifSettings.email_on_rma_status_change}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, email_on_rma_status_change: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      onClick={handleSaveNotifSettings}
+                      disabled={notifSettingsLoading}
+                      className="btn btn-primary flex items-center gap-2"
+                    >
+                      {notifSettingsLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Save className="w-5 h-5" />
+                      )}
+                      Save Notification Rules
                     </button>
                   </div>
                 </>

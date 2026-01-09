@@ -151,6 +151,8 @@ export const settingsApi = {
   getAI: () => api.get('/settings/ai'),
   updateAI: (api_key) => api.put('/settings/ai', { api_key }),
   testAI: (api_key) => api.post('/settings/ai/test', { api_key }),
+  getNotifications: () => api.get('/settings/notifications'),
+  updateNotifications: (data) => api.put('/settings/notifications', data),
 };
 
 export const emailApi = {
