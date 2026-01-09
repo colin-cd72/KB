@@ -731,23 +731,26 @@ function RMADetail() {
       <div ref={printRef} className="hidden">
         <style>{`
           @media print {
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            .rma-form { max-width: 800px; margin: 0 auto; }
-            .rma-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 20px; }
-            .rma-title { font-size: 24px; font-weight: bold; }
-            .rma-number { font-size: 32px; font-family: monospace; margin: 10px 0; }
-            .rma-section { margin-bottom: 20px; }
-            .rma-section-title { font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; }
-            .rma-row { display: flex; margin-bottom: 10px; }
-            .rma-label { width: 180px; font-weight: bold; }
-            .rma-value { flex: 1; }
-            .rma-value-box { flex: 1; border-bottom: 1px solid #999; min-height: 20px; }
-            .rma-description { border: 1px solid #ccc; padding: 10px; min-height: 80px; margin-top: 5px; }
-            .rma-footer { text-align: center; margin-top: 40px; font-size: 12px; color: #666; }
-            .rma-dates { display: flex; gap: 40px; margin-top: 20px; }
+            @page { size: letter; margin: 0.4in; }
+            body { font-family: Arial, sans-serif; padding: 0; margin: 0; font-size: 11px; }
+            .rma-form { max-width: 100%; margin: 0 auto; }
+            .rma-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 10px; }
+            .rma-title { font-size: 18px; font-weight: bold; }
+            .rma-number { font-size: 24px; font-family: monospace; margin: 4px 0; }
+            .rma-section { margin-bottom: 10px; page-break-inside: avoid; }
+            .rma-section-title { font-weight: bold; font-size: 12px; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-bottom: 6px; }
+            .rma-row { display: flex; margin-bottom: 4px; line-height: 1.3; }
+            .rma-label { width: 150px; font-weight: bold; font-size: 10px; }
+            .rma-value { flex: 1; font-size: 10px; }
+            .rma-value-box { flex: 1; border-bottom: 1px solid #999; min-height: 14px; }
+            .rma-description { border: 1px solid #ccc; padding: 6px; min-height: 40px; max-height: 80px; overflow: hidden; margin-top: 3px; font-size: 10px; }
+            .rma-footer { text-align: center; margin-top: 15px; font-size: 9px; color: #666; border-top: 1px solid #ccc; padding-top: 8px; }
+            .rma-dates { display: flex; gap: 20px; margin-top: 10px; }
             .rma-date-box { flex: 1; }
-            .rma-checkbox { display: inline-block; width: 14px; height: 14px; border: 1px solid #000; margin-right: 8px; vertical-align: middle; }
+            .rma-checkbox { display: inline-block; width: 12px; height: 12px; border: 1px solid #000; margin-right: 6px; vertical-align: middle; }
             .rma-checkbox.checked { background: #000; }
+            .rma-notes-compact { font-size: 9px; max-height: 120px; overflow: hidden; }
+            .rma-notes-compact > div { margin-bottom: 4px; padding-left: 6px; border-left: 2px solid #ccc; }
           }
         `}</style>
         <div className="rma-form">
@@ -864,15 +867,17 @@ function RMADetail() {
 
           {rma.notes?.length > 0 && (
             <div className="rma-section">
-              <div className="rma-section-title">Notes / Activity Log</div>
-              {rma.notes.map((note, idx) => (
-                <div key={idx} style={{ marginBottom: '8px', paddingLeft: '10px', borderLeft: '2px solid #ccc' }}>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    {note.user_name} - {new Date(note.created_at).toLocaleString()}
+              <div className="rma-section-title">Notes ({rma.notes.length})</div>
+              <div className="rma-notes-compact">
+                {rma.notes.slice(0, 3).map((note, idx) => (
+                  <div key={idx}>
+                    <span style={{ color: '#666' }}>{note.user_name} ({new Date(note.created_at).toLocaleDateString()}):</span> {note.content}
                   </div>
-                  <div>{note.content}</div>
-                </div>
-              ))}
+                ))}
+                {rma.notes.length > 3 && (
+                  <div style={{ color: '#999', fontStyle: 'italic' }}>+ {rma.notes.length - 3} more notes</div>
+                )}
+              </div>
             </div>
           )}
 
