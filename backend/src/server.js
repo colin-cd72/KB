@@ -21,6 +21,7 @@ const settingsRoutes = require('./routes/settings');
 const rmaRoutes = require('./routes/rmas');
 const webhookRoutes = require('./routes/webhook');
 const emailRoutes = require('./routes/email');
+const articleRoutes = require('./routes/articles');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -71,6 +72,7 @@ app.use('/api/todos', todoRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/rmas', rmaRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/articles', articleRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

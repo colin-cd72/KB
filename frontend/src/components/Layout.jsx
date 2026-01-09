@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { dashboardApi } from '../services/api';
+import CommandPalette from './CommandPalette';
+import InstallPrompt from './InstallPrompt';
 import {
   LayoutDashboard,
   AlertCircle,
@@ -20,7 +22,8 @@ import {
   ChevronRight,
   Package,
   Check,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -30,6 +33,7 @@ const navigation = [
   { name: 'Todos', href: '/todos', icon: CheckSquare, description: 'Task management' },
   { name: 'RMAs', href: '/rmas', icon: Package, description: 'Return tracking' },
   { name: 'Manuals', href: '/manuals', icon: BookOpen, description: 'Documentation' },
+  { name: 'Articles', href: '/articles', icon: FileText, description: 'How-to guides' },
   { name: 'Equipment', href: '/equipment', icon: Monitor, description: 'Asset registry' },
   { name: 'Search', href: '/search', icon: Search, description: 'AI-powered search' },
 ];
@@ -45,9 +49,22 @@ function Layout() {
   const [notifications, setNotifications] = useState([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Keyboard shortcut for command palette (Cmd+K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -258,21 +275,20 @@ function Layout() {
             <Menu className="w-6 h-6" />
           </button>
 
-          {/* Search bar placeholder */}
+          {/* Search bar - opens command palette */}
           <div className="hidden md:flex flex-1 max-w-md">
-            <div className="relative w-full">
+            <button
+              onClick={() => setCommandPaletteOpen(true)}
+              className="relative w-full flex items-center"
+            >
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
-              <input
-                type="text"
-                placeholder="Quick search..."
-                className="search-input w-full"
-                onClick={() => navigate('/search')}
-                readOnly
-              />
+              <div className="search-input w-full text-left text-dark-400 cursor-pointer hover:bg-dark-100 transition-colors">
+                Quick search...
+              </div>
               <kbd className="absolute right-4 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-dark-400 bg-dark-100 rounded">
                 ⌘K
               </kbd>
-            </div>
+            </button>
           </div>
 
           <div className="flex-1 md:hidden" />
@@ -417,6 +433,15 @@ function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+      />
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
   );
 }

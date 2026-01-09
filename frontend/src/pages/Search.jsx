@@ -63,7 +63,7 @@ function Search() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Search</h1>
-        <p className="mt-1 text-gray-500">Search through issues, manuals, and equipment</p>
+        <p className="mt-1 text-gray-500">Search through issues, manuals, articles, and equipment</p>
       </div>
 
       {/* Regular Search */}
@@ -126,7 +126,7 @@ function Search() {
             {searchResults?.manuals?.length > 0 && (
               <div>
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
-                  <FileText className="w-4 h-4" />
+                  <BookOpen className="w-4 h-4" />
                   Manuals ({searchResults.manuals.length})
                 </h3>
                 <div className="space-y-2">
@@ -146,6 +146,39 @@ function Search() {
                         <p className="mt-1 text-sm text-gray-500 line-clamp-1">{manual.description}</p>
                       )}
                     </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Articles */}
+            {searchResults?.articles?.length > 0 && (
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+                  <FileText className="w-4 h-4" />
+                  Articles ({searchResults.articles.length})
+                </h3>
+                <div className="space-y-2">
+                  {searchResults.articles.map((article) => (
+                    <Link
+                      key={article.id}
+                      to={`/articles/${article.slug}`}
+                      className="block p-3 rounded-lg border hover:border-primary-300 hover:bg-primary-50"
+                    >
+                      <span className="font-medium text-gray-900">{article.title}</span>
+                      {article.category_name && (
+                        <span className="ml-2 text-sm text-gray-500">({article.category_name})</span>
+                      )}
+                      {article.summary && (
+                        <p className="mt-1 text-sm text-gray-500 line-clamp-2">{article.summary}</p>
+                      )}
+                      {article.snippet && !article.summary && (
+                        <p
+                          className="mt-1 text-sm text-gray-500 line-clamp-2"
+                          dangerouslySetInnerHTML={{ __html: article.snippet }}
+                        />
+                      )}
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -179,6 +212,7 @@ function Search() {
             {/* No results */}
             {searchResults?.issues?.length === 0 &&
               searchResults?.manuals?.length === 0 &&
+              searchResults?.articles?.length === 0 &&
               searchResults?.equipment?.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <SearchIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />

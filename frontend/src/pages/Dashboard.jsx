@@ -13,9 +13,16 @@ import {
   ArrowRight,
   Zap,
   Target,
-  Activity
+  Activity,
+  Package,
+  Folder
 } from 'lucide-react';
 import clsx from 'clsx';
+import {
+  PieChart, Pie, Cell, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip,
+  LineChart, Line, CartesianGrid, Legend
+} from 'recharts';
 
 function StatCard({ title, value, icon: Icon, gradient, link, change }) {
   const content = (
@@ -73,6 +80,296 @@ function StatusBadge({ status }) {
   );
 }
 
+// RMA Aging Widget
+function RmaAgingWidget({ data, total }) {
+  if (!data || data.every(d => d.value === 0)) {
+    return (
+      <div className="card">
+        <div className="px-6 py-5 border-b border-dark-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+              <Package className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-dark-900">RMA Aging</h2>
+              <p className="text-sm text-dark-500">Shipped RMAs by age</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 text-center text-dark-500">
+          <Package className="w-12 h-12 mx-auto mb-2 text-dark-300" />
+          <p>No shipped RMAs to track</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="px-6 py-5 border-b border-dark-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+            <Package className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-dark-900">RMA Aging</h2>
+            <p className="text-sm text-dark-500">{total} shipped RMAs</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-6">
+        <div className="flex items-center justify-center">
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={data.filter(d => d.value > 0)}
+                cx="50%"
+                cy="50%"
+                innerRadius={50}
+                outerRadius={80}
+                paddingAngle={2}
+                dataKey="value"
+              >
+                {data.filter(d => d.value > 0).map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          {data.map((item, idx) => (
+            <div key={idx} className="flex items-center gap-2 text-sm">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="text-dark-600">{item.name}</span>
+              <span className="font-bold text-dark-900 ml-auto">{item.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Equipment Failures Widget
+function EquipmentFailuresWidget({ equipment }) {
+  if (!equipment || equipment.length === 0) {
+    return (
+      <div className="card">
+        <div className="px-6 py-5 border-b border-dark-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+              <Monitor className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-dark-900">Equipment Issues</h2>
+              <p className="text-sm text-dark-500">Last 90 days</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 text-center text-dark-500">
+          <Monitor className="w-12 h-12 mx-auto mb-2 text-dark-300" />
+          <p>No equipment issues in last 90 days</p>
+        </div>
+      </div>
+    );
+  }
+
+  const chartData = equipment.slice(0, 6).map(e => ({
+    name: e.name.length > 15 ? e.name.substring(0, 15) + '...' : e.name,
+    fullName: e.name,
+    issues: parseInt(e.failure_count)
+  }));
+
+  return (
+    <div className="card">
+      <div className="px-6 py-5 border-b border-dark-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+            <Monitor className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-dark-900">Equipment Issues</h2>
+            <p className="text-sm text-dark-500">Top issues in last 90 days</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-6">
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 20 }}>
+            <XAxis type="number" />
+            <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div className="bg-white p-2 border rounded shadow-lg text-sm">
+                      <p className="font-medium">{payload[0].payload.fullName}</p>
+                      <p className="text-dark-600">{payload[0].value} issues</p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Bar dataKey="issues" fill="#ef4444" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// Common Issues Widget
+function CommonIssuesWidget({ categories }) {
+  if (!categories || categories.length === 0) {
+    return (
+      <div className="card">
+        <div className="px-6 py-5 border-b border-dark-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
+              <Folder className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-dark-900">Common Issues</h2>
+              <p className="text-sm text-dark-500">This month</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 text-center text-dark-500">
+          <Folder className="w-12 h-12 mx-auto mb-2 text-dark-300" />
+          <p>No issues this month</p>
+        </div>
+      </div>
+    );
+  }
+
+  const maxCount = Math.max(...categories.map(c => parseInt(c.count)));
+
+  return (
+    <div className="card">
+      <div className="px-6 py-5 border-b border-dark-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
+            <Folder className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-dark-900">Common Issues</h2>
+            <p className="text-sm text-dark-500">Top categories this month</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-6 space-y-3">
+        {categories.slice(0, 5).map((cat, idx) => {
+          const percentage = (parseInt(cat.count) / maxCount) * 100;
+          return (
+            <div key={cat.id || idx} className="group">
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-dark-700 font-medium">{cat.name}</span>
+                <span className="text-dark-500">
+                  <span className="font-bold text-dark-900">{cat.count}</span>
+                  <span className="text-xs ml-1">({cat.open_count} open)</span>
+                </span>
+              </div>
+              <div className="w-full bg-dark-100 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${percentage}%`,
+                    backgroundColor: cat.color || '#8b5cf6'
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Trends Widget
+function TrendsWidget({ trends }) {
+  if (!trends || trends.length === 0) {
+    return (
+      <div className="card lg:col-span-2">
+        <div className="px-6 py-5 border-b border-dark-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-dark-900">Weekly Trends</h2>
+              <p className="text-sm text-dark-500">Issues created vs resolved</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 text-center text-dark-500">
+          <TrendingUp className="w-12 h-12 mx-auto mb-2 text-dark-300" />
+          <p>Not enough data for trends</p>
+        </div>
+      </div>
+    );
+  }
+
+  const chartData = trends.map(t => ({
+    week: t.week,
+    created: parseInt(t.created) || 0,
+    resolved: parseInt(t.resolved) || 0
+  })).reverse();
+
+  return (
+    <div className="card lg:col-span-2">
+      <div className="px-6 py-5 border-b border-dark-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-dark-900">Weekly Trends</h2>
+            <p className="text-sm text-dark-500">Issues created vs resolved (8 weeks)</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-6">
+        <ResponsiveContainer width="100%" height={250}>
+          <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="week" tick={{ fontSize: 12 }} stroke="#6b7280" />
+            <YAxis tick={{ fontSize: 12 }} stroke="#6b7280" />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                fontSize: '12px'
+              }}
+            />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey="created"
+              name="Created"
+              stroke="#f59e0b"
+              strokeWidth={2}
+              dot={{ fill: '#f59e0b', r: 4 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="resolved"
+              name="Resolved"
+              stroke="#22c55e"
+              strokeWidth={2}
+              dot={{ fill: '#22c55e', r: 4 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard() {
   const { user } = useAuthStore();
 
@@ -89,6 +386,43 @@ function Dashboard() {
     queryFn: async () => {
       const response = await dashboardApi.getAssignments();
       return response.data.assignments;
+    },
+    enabled: user?.role !== 'viewer',
+  });
+
+  // Widget queries (technician+ only)
+  const { data: rmaAging } = useQuery({
+    queryKey: ['rma-aging'],
+    queryFn: async () => {
+      const response = await dashboardApi.getRmaAging();
+      return response.data;
+    },
+    enabled: user?.role !== 'viewer',
+  });
+
+  const { data: equipmentFailures } = useQuery({
+    queryKey: ['equipment-failures'],
+    queryFn: async () => {
+      const response = await dashboardApi.getEquipmentFailures();
+      return response.data;
+    },
+    enabled: user?.role !== 'viewer',
+  });
+
+  const { data: commonIssues } = useQuery({
+    queryKey: ['common-issues'],
+    queryFn: async () => {
+      const response = await dashboardApi.getCommonIssues();
+      return response.data;
+    },
+    enabled: user?.role !== 'viewer',
+  });
+
+  const { data: trends } = useQuery({
+    queryKey: ['dashboard-trends'],
+    queryFn: async () => {
+      const response = await dashboardApi.getTrends();
+      return response.data;
     },
     enabled: user?.role !== 'viewer',
   });
@@ -348,6 +682,16 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Analytics Widgets (technician+ only) */}
+      {user?.role !== 'viewer' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <RmaAgingWidget data={rmaAging?.data} total={rmaAging?.total} />
+          <EquipmentFailuresWidget equipment={equipmentFailures?.equipment} />
+          <CommonIssuesWidget categories={commonIssues?.categories} />
+          <TrendsWidget trends={trends?.trends} />
+        </div>
+      )}
     </div>
   );
 }

@@ -15,7 +15,7 @@ router.get('/', authenticate, isViewer, async (req, res, next) => {
     }
 
     const searchTerm = `%${q}%`;
-    const results = { issues: [], manuals: [], equipment: [] };
+    const results = { issues: [], manuals: [], equipment: [], articles: [] };
 
     // Log search for analytics
     await query(
@@ -68,6 +68,25 @@ router.get('/', authenticate, isViewer, async (req, res, next) => {
         [searchTerm, limit]
       );
       results.equipment = equipmentResults.rows;
+    }
+
+    // Search articles
+    if (!type || type === 'articles') {
+      const articleResults = await query(
+        `SELECT a.id, a.title, a.slug, a.summary, a.is_published, a.created_at,
+                c.name as category_name,
+                e.name as equipment_name,
+                ts_headline('english', a.title || ' ' || COALESCE(a.content, ''), plainto_tsquery('english', $1), 'MaxFragments=2, MaxWords=30') as snippet,
+                ts_rank(COALESCE(a.search_vector, to_tsvector('english', a.title || ' ' || COALESCE(a.content, ''))), plainto_tsquery('english', $1)) as rank
+         FROM articles a
+         LEFT JOIN categories c ON a.category_id = c.id
+         LEFT JOIN equipment e ON a.equipment_id = e.id
+         WHERE a.is_published = true AND (a.title ILIKE $2 OR a.content ILIKE $2 OR a.summary ILIKE $2)
+         ORDER BY rank DESC, a.created_at DESC
+         LIMIT $3`,
+        [q, searchTerm, limit]
+      );
+      results.articles = articleResults.rows;
     }
 
     res.json({ results, query: q });
@@ -174,6 +193,29 @@ router.post('/ai', authenticate, isViewer, async (req, res, next) => {
       }
     }
 
+    // Get relevant articles
+    const relevantArticles = await query(
+      `SELECT title, content, summary
+       FROM articles
+       WHERE is_published = true
+         AND (search_vector @@ plainto_tsquery('english', $1)
+              OR title ILIKE $2 OR content ILIKE $2)
+       ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC
+       LIMIT 3`,
+      [userQuery, `%${userQuery.split(' ').join('%')}%`]
+    );
+
+    if (relevantArticles.rows.length > 0) {
+      context += '\n\nRelevant how-to articles:\n';
+      relevantArticles.rows.forEach((article, i) => {
+        context += `\n${i + 1}. "${article.title}"\n`;
+        if (article.summary) {
+          context += `   Summary: ${article.summary}\n`;
+        }
+        context += `   Content: ${article.content?.substring(0, 500)}...\n`;
+      });
+    }
+
     // Call Claude
     const response = await claudeService.searchAssistant(userQuery, context, include_web);
 
@@ -270,6 +312,25 @@ router.post('/similar-issues', authenticate, isViewer, async (req, res, next) =>
           });
         }
 
+        // Get relevant articles
+        const relevantArticles = await query(
+          `SELECT title, content, summary
+           FROM articles
+           WHERE is_published = true
+             AND (search_vector @@ plainto_tsquery('english', $1)
+                  OR title ILIKE $2 OR content ILIKE $2)
+           ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC
+           LIMIT 2`,
+          [searchText, `%${searchText.split(' ').slice(0, 3).join('%')}%`]
+        );
+
+        if (relevantArticles.rows.length > 0) {
+          context += '\nRelevant how-to articles:\n';
+          relevantArticles.rows.forEach((article) => {
+            context += `"${article.title}": ${article.content?.substring(0, 400)}...\n`;
+          });
+        }
+
         // Call Claude for suggestion with conversation history
         aiResponse = await claudeService.suggestSolution(searchText, context, conversationHistory || []);
       }
@@ -340,6 +401,15 @@ router.get('/suggestions', authenticate, isViewer, async (req, res, next) => {
       [searchTerm]
     );
 
+    // Get article suggestions
+    const articleSuggestions = await query(
+      `SELECT DISTINCT title as text, 'article' as type
+       FROM articles
+       WHERE title ILIKE $1 AND is_published = true
+       LIMIT 3`,
+      [searchTerm]
+    );
+
     // Get popular searches
     const popularSearches = await query(
       `SELECT query as text, 'recent' as type, COUNT(*) as count
@@ -354,10 +424,160 @@ router.get('/suggestions', authenticate, isViewer, async (req, res, next) => {
     const suggestions = [
       ...issueSuggestions.rows,
       ...equipmentSuggestions.rows,
+      ...articleSuggestions.rows,
       ...popularSearches.rows
     ];
 
     res.json({ suggestions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============= SEARCH HISTORY & SAVED SEARCHES =============
+
+// Get user's search history
+router.get('/history', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const { limit = 10 } = req.query;
+
+    const result = await query(
+      `SELECT id, query, search_type, results_count, created_at
+       FROM search_history
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [req.user.id, limit]
+    );
+
+    res.json({ history: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Clear search history
+router.delete('/history', authenticate, isViewer, async (req, res, next) => {
+  try {
+    await query(
+      'DELETE FROM search_history WHERE user_id = $1',
+      [req.user.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get user's saved searches
+router.get('/saved', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT id, name, query, filters, search_type, created_at
+       FROM saved_searches
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+
+    res.json({ searches: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Save a search
+router.post('/saved', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const { name, query: searchQuery, filters, search_type = 'global' } = req.body;
+
+    if (!name || !searchQuery) {
+      return res.status(400).json({ error: 'Name and query are required' });
+    }
+
+    const result = await query(
+      `INSERT INTO saved_searches (user_id, name, query, filters, search_type)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [req.user.id, name, searchQuery, filters || {}, search_type]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete a saved search
+router.delete('/saved/:id', authenticate, isViewer, async (req, res, next) => {
+  try {
+    await query(
+      'DELETE FROM saved_searches WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Quick search endpoint for command palette (fast, lightweight)
+router.get('/quick', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const { q, limit = 5 } = req.query;
+
+    if (!q || q.trim().length < 2) {
+      return res.json({ results: [] });
+    }
+
+    const searchTerm = `${q}%`;
+    const results = [];
+
+    // Search issues (title only for speed)
+    const issues = await query(
+      `SELECT id, title, status, priority, 'issue' as type
+       FROM issues
+       WHERE title ILIKE $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [searchTerm, limit]
+    );
+    results.push(...issues.rows);
+
+    // Search articles
+    const articles = await query(
+      `SELECT id, title, slug, 'article' as type
+       FROM articles
+       WHERE is_published = true AND title ILIKE $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [searchTerm, limit]
+    );
+    results.push(...articles.rows);
+
+    // Search equipment
+    const equipment = await query(
+      `SELECT id, name as title, 'equipment' as type
+       FROM equipment
+       WHERE is_active = true AND name ILIKE $1
+       ORDER BY name
+       LIMIT $2`,
+      [searchTerm, limit]
+    );
+    results.push(...equipment.rows);
+
+    // Search manuals
+    const manuals = await query(
+      `SELECT id, title, 'manual' as type
+       FROM manuals
+       WHERE title ILIKE $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [searchTerm, limit]
+    );
+    results.push(...manuals.rows);
+
+    res.json({ results: results.slice(0, limit * 2) });
   } catch (error) {
     next(error);
   }

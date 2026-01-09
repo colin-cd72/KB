@@ -256,4 +256,112 @@ router.post('/notifications/read-all', authenticate, async (req, res, next) => {
   }
 });
 
+// ============= DASHBOARD WIDGETS =============
+
+// RMA Aging - breakdown by days outstanding
+router.get('/rma-aging', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE shipped_at >= NOW() - INTERVAL '7 days') as week_1,
+        COUNT(*) FILTER (WHERE shipped_at >= NOW() - INTERVAL '14 days' AND shipped_at < NOW() - INTERVAL '7 days') as week_2,
+        COUNT(*) FILTER (WHERE shipped_at >= NOW() - INTERVAL '30 days' AND shipped_at < NOW() - INTERVAL '14 days') as month,
+        COUNT(*) FILTER (WHERE shipped_at < NOW() - INTERVAL '30 days') as overdue,
+        COUNT(*) as total
+      FROM rmas
+      WHERE status = 'shipped'
+    `);
+
+    const aging = result.rows[0];
+    res.json({
+      data: [
+        { name: '0-7 days', value: parseInt(aging.week_1) || 0, color: '#22c55e' },
+        { name: '8-14 days', value: parseInt(aging.week_2) || 0, color: '#eab308' },
+        { name: '15-30 days', value: parseInt(aging.month) || 0, color: '#f97316' },
+        { name: '30+ days', value: parseInt(aging.overdue) || 0, color: '#ef4444' }
+      ],
+      total: parseInt(aging.total) || 0
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Equipment Failures - top equipment with most issues (last 90 days)
+router.get('/equipment-failures', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT e.id, e.name, e.model, COUNT(i.id) as failure_count,
+             MAX(i.created_at) as last_issue_date
+      FROM issues i
+      JOIN equipment e ON i.equipment_id = e.id
+      WHERE i.created_at > NOW() - INTERVAL '90 days'
+      GROUP BY e.id, e.name, e.model
+      ORDER BY failure_count DESC
+      LIMIT 10
+    `);
+
+    res.json({ equipment: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Common Issues - top issue categories this month
+router.get('/common-issues', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT c.id, c.name, c.color, COUNT(i.id) as count,
+             COUNT(*) FILTER (WHERE i.status IN ('open', 'in_progress')) as open_count,
+             COUNT(*) FILTER (WHERE i.status IN ('resolved', 'closed')) as resolved_count
+      FROM issues i
+      JOIN categories c ON i.category_id = c.id
+      WHERE i.created_at > NOW() - INTERVAL '30 days'
+      GROUP BY c.id, c.name, c.color
+      ORDER BY count DESC
+      LIMIT 10
+    `);
+
+    res.json({ categories: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Weekly Trends - issues created vs resolved over the last 8 weeks
+router.get('/trends', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const result = await query(`
+      WITH weeks AS (
+        SELECT generate_series(0, 7) as week_offset
+      ),
+      weekly_data AS (
+        SELECT
+          w.week_offset,
+          DATE_TRUNC('week', NOW() - (w.week_offset * INTERVAL '1 week')) as week_start,
+          COUNT(DISTINCT i_created.id) as created,
+          COUNT(DISTINCT i_resolved.id) as resolved
+        FROM weeks w
+        LEFT JOIN issues i_created ON
+          DATE_TRUNC('week', i_created.created_at) = DATE_TRUNC('week', NOW() - (w.week_offset * INTERVAL '1 week'))
+        LEFT JOIN issues i_resolved ON
+          DATE_TRUNC('week', i_resolved.resolved_at) = DATE_TRUNC('week', NOW() - (w.week_offset * INTERVAL '1 week'))
+          AND i_resolved.status IN ('resolved', 'closed')
+        GROUP BY w.week_offset
+        ORDER BY w.week_offset DESC
+      )
+      SELECT
+        TO_CHAR(week_start, 'Mon DD') as week,
+        created,
+        resolved
+      FROM weekly_data
+      ORDER BY week_offset DESC
+    `);
+
+    res.json({ trends: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

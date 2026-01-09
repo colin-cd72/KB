@@ -15,6 +15,9 @@ import Settings from './pages/Settings';
 import Todos from './pages/Todos';
 import RMAs from './pages/RMAs';
 import RMADetail from './pages/RMADetail';
+import Articles from './pages/Articles';
+import ArticleDetail from './pages/ArticleDetail';
+import ArticleEditor from './pages/ArticleEditor';
 
 function ProtectedRoute({ children, roles }) {
   const { user, isAuthenticated } = useAuthStore();
@@ -68,6 +71,18 @@ function App() {
         <Route path="todos" element={<Todos />} />
         <Route path="rmas" element={<RMAs />} />
         <Route path="rmas/:id" element={<RMADetail />} />
+        <Route path="articles" element={<Articles />} />
+        <Route path="articles/new" element={
+          <ProtectedRoute roles={['admin', 'technician']}>
+            <ArticleEditor />
+          </ProtectedRoute>
+        } />
+        <Route path="articles/:id/edit" element={
+          <ProtectedRoute roles={['admin', 'technician']}>
+            <ArticleEditor />
+          </ProtectedRoute>
+        } />
+        <Route path="articles/:slug" element={<ArticleDetail />} />
         <Route path="search" element={<Search />} />
         <Route path="users" element={
           <ProtectedRoute roles={['admin']}>

@@ -124,6 +124,15 @@ export const searchApi = {
   suggestions: (q) => api.get('/search/suggestions', { params: { q } }),
   similarIssues: (data) => api.post('/search/similar-issues', data),
   continueConversation: (data) => api.post('/search/continue-conversation', data),
+  // Quick search for command palette
+  quick: (q) => api.get('/search/quick', { params: { q } }),
+  // Search history
+  getHistory: (limit) => api.get('/search/history', { params: { limit } }),
+  clearHistory: () => api.delete('/search/history'),
+  // Saved searches
+  getSaved: () => api.get('/search/saved'),
+  saveSearch: (data) => api.post('/search/saved', data),
+  deleteSaved: (id) => api.delete(`/search/saved/${id}`),
 };
 
 export const dashboardApi = {
@@ -134,6 +143,11 @@ export const dashboardApi = {
   getNotifications: (params) => api.get('/dashboard/notifications', { params }),
   markNotificationRead: (id) => api.post(`/dashboard/notifications/${id}/read`),
   markAllRead: () => api.post('/dashboard/notifications/read-all'),
+  // Widget endpoints
+  getRmaAging: () => api.get('/dashboard/rma-aging'),
+  getEquipmentFailures: () => api.get('/dashboard/equipment-failures'),
+  getCommonIssues: () => api.get('/dashboard/common-issues'),
+  getTrends: () => api.get('/dashboard/trends'),
 };
 
 export const todosApi = {
@@ -168,6 +182,24 @@ export const emailApi = {
   verifyEmail: (token) => api.post(`/email/verify/${token}`),
   requestPasswordReset: (email) => api.post('/email/password-reset/request', { email }),
   resetPassword: (token, password) => api.post(`/email/password-reset/${token}`, { password }),
+};
+
+export const articlesApi = {
+  getAll: (params) => api.get('/articles', { params }),
+  getOne: (id) => api.get(`/articles/${id}`),
+  getBySlug: (slug) => api.get(`/articles/by-slug/${slug}`),
+  getFeatured: (limit) => api.get('/articles/featured', { params: { limit } }),
+  create: (data) => api.post('/articles', data),
+  update: (id, data) => api.put(`/articles/${id}`, data),
+  delete: (id) => api.delete(`/articles/${id}`),
+  publish: (id, is_published) => api.post(`/articles/${id}/publish`, { is_published }),
+  feature: (id, is_featured) => api.post(`/articles/${id}/feature`, { is_featured }),
+  uploadImage: (id, formData) => api.post(`/articles/${id}/images`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  getImages: (id) => api.get(`/articles/${id}/images`),
+  deleteImage: (imageId) => api.delete(`/articles/images/${imageId}`),
+  search: (q, limit) => api.get('/articles/search/content', { params: { q, limit } }),
 };
 
 export const rmasApi = {
