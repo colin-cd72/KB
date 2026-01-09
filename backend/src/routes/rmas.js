@@ -101,6 +101,202 @@ router.get('/', authenticate, async (req, res, next) => {
   }
 });
 
+// Get previous contacts (for auto-suggest) - MUST be before /:id route
+router.get('/contacts', authenticate, async (req, res, next) => {
+  try {
+    const { search, part_number } = req.query;
+
+    // First, check if this part number has been sent to a contact before
+    let suggestedContact = null;
+    if (part_number) {
+      const partMatch = await query(`
+        SELECT DISTINCT contact_name, contact_email, contact_phone
+        FROM rmas
+        WHERE part_number ILIKE $1
+          AND contact_name IS NOT NULL
+          AND contact_name != ''
+        ORDER BY MAX(created_at) DESC
+        LIMIT 1
+      `, [`%${part_number}%`]);
+
+      if (partMatch.rows.length > 0) {
+        suggestedContact = partMatch.rows[0];
+      }
+    }
+
+    // Get all unique contacts for auto-complete
+    let contactsQuery = `
+      SELECT DISTINCT ON (contact_name, contact_email)
+        contact_name, contact_email, contact_phone,
+        COUNT(*) as rma_count
+      FROM rmas
+      WHERE contact_name IS NOT NULL AND contact_name != ''
+    `;
+    const params = [];
+
+    if (search) {
+      contactsQuery += ` AND (
+        contact_name ILIKE $1 OR
+        contact_email ILIKE $1 OR
+        contact_phone ILIKE $1
+      )`;
+      params.push(`%${search}%`);
+    }
+
+    contactsQuery += `
+      GROUP BY contact_name, contact_email, contact_phone
+      ORDER BY contact_name, contact_email, MAX(created_at) DESC
+      LIMIT 10
+    `;
+
+    const contacts = await query(contactsQuery, params);
+
+    res.json({
+      contacts: contacts.rows,
+      suggested_contact: suggestedContact
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get RMA report data - MUST be before /:id route
+router.get('/reports', authenticate, async (req, res, next) => {
+  try {
+    const { start_date, end_date, status, contact_name, group_by } = req.query;
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramCount = 1;
+
+    if (start_date) {
+      whereClause += ` AND r.created_at >= $${paramCount++}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      whereClause += ` AND r.created_at <= $${paramCount++}`;
+      params.push(end_date + 'T23:59:59');
+    }
+
+    if (status) {
+      whereClause += ` AND r.status = $${paramCount++}`;
+      params.push(status);
+    }
+
+    if (contact_name) {
+      whereClause += ` AND r.contact_name ILIKE $${paramCount++}`;
+      params.push(`%${contact_name}%`);
+    }
+
+    // Get detailed RMA data for report
+    const rmas = await query(`
+      SELECT r.*,
+             u.name as created_by_name,
+             CASE
+               WHEN r.shipped_at IS NOT NULL AND r.received_at IS NOT NULL
+               THEN EXTRACT(DAY FROM (r.received_at - r.shipped_at))
+               WHEN r.shipped_at IS NOT NULL
+               THEN EXTRACT(DAY FROM (NOW() - r.shipped_at))
+               ELSE NULL
+             END as days_out
+      FROM rmas r
+      LEFT JOIN users u ON r.created_by = u.id
+      ${whereClause}
+      ORDER BY r.created_at DESC
+    `, params);
+
+    // Get summary stats
+    const summary = await query(`
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending,
+        COUNT(*) FILTER (WHERE status = 'approved') as approved,
+        COUNT(*) FILTER (WHERE status = 'shipped') as shipped,
+        COUNT(*) FILTER (WHERE status = 'received') as received,
+        COUNT(*) FILTER (WHERE status = 'complete') as complete,
+        AVG(CASE
+          WHEN shipped_at IS NOT NULL AND received_at IS NOT NULL
+          THEN EXTRACT(DAY FROM (received_at - shipped_at))
+          ELSE NULL
+        END)::numeric(10,1) as avg_days_out
+      FROM rmas r
+      ${whereClause}
+    `, params);
+
+    // Get by contact summary
+    const byContact = await query(`
+      SELECT
+        contact_name,
+        COUNT(*) as count,
+        COUNT(*) FILTER (WHERE status = 'complete') as completed,
+        AVG(CASE
+          WHEN shipped_at IS NOT NULL AND received_at IS NOT NULL
+          THEN EXTRACT(DAY FROM (received_at - shipped_at))
+          ELSE NULL
+        END)::numeric(10,1) as avg_days_out
+      FROM rmas r
+      ${whereClause}
+      AND contact_name IS NOT NULL AND contact_name != ''
+      GROUP BY contact_name
+      ORDER BY count DESC
+      LIMIT 20
+    `, params);
+
+    res.json({
+      rmas: rmas.rows,
+      summary: summary.rows[0],
+      by_contact: byContact.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get RMA statistics - MUST be before /:id route
+router.get('/stats/summary', authenticate, async (req, res, next) => {
+  try {
+    const stats = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'pending') as pending,
+        COUNT(*) FILTER (WHERE status = 'shipped') as shipped,
+        COUNT(*) FILTER (WHERE status = 'received') as received,
+        COUNT(*) FILTER (WHERE status = 'complete') as complete,
+        COUNT(*) as total
+      FROM rmas
+    `);
+
+    res.json(stats.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get 17TRACK API quota (admin only) - MUST be before /:id route
+router.get('/tracking/quota', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const quota = await getQuota17Track();
+
+    if (!quota) {
+      return res.json({
+        configured: false,
+        message: 'Tracking API not configured. Add TRACK17_API_KEY to enable.'
+      });
+    }
+
+    res.json({
+      configured: true,
+      quota_total: quota.quota_total,
+      quota_used: quota.quota_used,
+      quota_remain: quota.quota_remain,
+      daily_limit: quota.daily_limit,
+      daily_used: quota.daily_used
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single RMA with all details
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
@@ -610,177 +806,6 @@ CRITICAL RULES:
   }
 });
 
-// Get previous contacts (for auto-suggest)
-router.get('/contacts', authenticate, async (req, res, next) => {
-  try {
-    const { search, part_number } = req.query;
-
-    // First, check if this part number has been sent to a contact before
-    let suggestedContact = null;
-    if (part_number) {
-      const partMatch = await query(`
-        SELECT DISTINCT contact_name, contact_email, contact_phone
-        FROM rmas
-        WHERE part_number ILIKE $1
-          AND contact_name IS NOT NULL
-          AND contact_name != ''
-        ORDER BY MAX(created_at) DESC
-        LIMIT 1
-      `, [`%${part_number}%`]);
-
-      if (partMatch.rows.length > 0) {
-        suggestedContact = partMatch.rows[0];
-      }
-    }
-
-    // Get all unique contacts for auto-complete
-    let contactsQuery = `
-      SELECT DISTINCT ON (contact_name, contact_email)
-        contact_name, contact_email, contact_phone,
-        COUNT(*) as rma_count
-      FROM rmas
-      WHERE contact_name IS NOT NULL AND contact_name != ''
-    `;
-    const params = [];
-
-    if (search) {
-      contactsQuery += ` AND (
-        contact_name ILIKE $1 OR
-        contact_email ILIKE $1 OR
-        contact_phone ILIKE $1
-      )`;
-      params.push(`%${search}%`);
-    }
-
-    contactsQuery += `
-      GROUP BY contact_name, contact_email, contact_phone
-      ORDER BY contact_name, contact_email, MAX(created_at) DESC
-      LIMIT 10
-    `;
-
-    const contacts = await query(contactsQuery, params);
-
-    res.json({
-      contacts: contacts.rows,
-      suggested_contact: suggestedContact
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Get RMA report data
-router.get('/reports', authenticate, async (req, res, next) => {
-  try {
-    const { start_date, end_date, status, contact_name, group_by } = req.query;
-
-    let whereClause = 'WHERE 1=1';
-    const params = [];
-    let paramCount = 1;
-
-    if (start_date) {
-      whereClause += ` AND r.created_at >= $${paramCount++}`;
-      params.push(start_date);
-    }
-
-    if (end_date) {
-      whereClause += ` AND r.created_at <= $${paramCount++}`;
-      params.push(end_date + 'T23:59:59');
-    }
-
-    if (status) {
-      whereClause += ` AND r.status = $${paramCount++}`;
-      params.push(status);
-    }
-
-    if (contact_name) {
-      whereClause += ` AND r.contact_name ILIKE $${paramCount++}`;
-      params.push(`%${contact_name}%`);
-    }
-
-    // Get detailed RMA data for report
-    const rmas = await query(`
-      SELECT r.*,
-             u.name as created_by_name,
-             CASE
-               WHEN r.shipped_at IS NOT NULL AND r.received_at IS NOT NULL
-               THEN EXTRACT(DAY FROM (r.received_at - r.shipped_at))
-               WHEN r.shipped_at IS NOT NULL
-               THEN EXTRACT(DAY FROM (NOW() - r.shipped_at))
-               ELSE NULL
-             END as days_out
-      FROM rmas r
-      LEFT JOIN users u ON r.created_by = u.id
-      ${whereClause}
-      ORDER BY r.created_at DESC
-    `, params);
-
-    // Get summary stats
-    const summary = await query(`
-      SELECT
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE status = 'pending') as pending,
-        COUNT(*) FILTER (WHERE status = 'approved') as approved,
-        COUNT(*) FILTER (WHERE status = 'shipped') as shipped,
-        COUNT(*) FILTER (WHERE status = 'received') as received,
-        COUNT(*) FILTER (WHERE status = 'complete') as complete,
-        AVG(CASE
-          WHEN shipped_at IS NOT NULL AND received_at IS NOT NULL
-          THEN EXTRACT(DAY FROM (received_at - shipped_at))
-          ELSE NULL
-        END)::numeric(10,1) as avg_days_out
-      FROM rmas r
-      ${whereClause}
-    `, params);
-
-    // Get by contact summary
-    const byContact = await query(`
-      SELECT
-        contact_name,
-        COUNT(*) as count,
-        COUNT(*) FILTER (WHERE status = 'complete') as completed,
-        AVG(CASE
-          WHEN shipped_at IS NOT NULL AND received_at IS NOT NULL
-          THEN EXTRACT(DAY FROM (received_at - shipped_at))
-          ELSE NULL
-        END)::numeric(10,1) as avg_days_out
-      FROM rmas r
-      ${whereClause}
-      AND contact_name IS NOT NULL AND contact_name != ''
-      GROUP BY contact_name
-      ORDER BY count DESC
-      LIMIT 20
-    `, params);
-
-    res.json({
-      rmas: rmas.rows,
-      summary: summary.rows[0],
-      by_contact: byContact.rows
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Get RMA statistics
-router.get('/stats/summary', authenticate, async (req, res, next) => {
-  try {
-    const stats = await query(`
-      SELECT
-        COUNT(*) FILTER (WHERE status = 'pending') as pending,
-        COUNT(*) FILTER (WHERE status = 'shipped') as shipped,
-        COUNT(*) FILTER (WHERE status = 'received') as received,
-        COUNT(*) FILTER (WHERE status = 'complete') as complete,
-        COUNT(*) as total
-      FROM rmas
-    `);
-
-    res.json(stats.rows[0]);
-  } catch (error) {
-    next(error);
-  }
-});
-
 // Get tracking info for a specific RMA
 router.get('/:id/tracking', authenticate, async (req, res, next) => {
   try {
@@ -816,31 +841,6 @@ router.get('/:id/tracking', authenticate, async (req, res, next) => {
       delivered: trackingStatus.delivered,
       delivery_date: trackingStatus.deliveryDate,
       events: trackingStatus.events || []
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Get 17TRACK API quota (admin only)
-router.get('/tracking/quota', authenticate, isAdmin, async (req, res, next) => {
-  try {
-    const quota = await getQuota17Track();
-
-    if (!quota) {
-      return res.json({
-        configured: false,
-        message: 'Tracking API not configured. Add TRACK17_API_KEY to enable.'
-      });
-    }
-
-    res.json({
-      configured: true,
-      quota_total: quota.quota_total,
-      quota_used: quota.quota_used,
-      quota_remain: quota.quota_remain,
-      daily_limit: quota.daily_limit,
-      daily_used: quota.daily_used
     });
   } catch (error) {
     next(error);
