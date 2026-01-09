@@ -55,7 +55,8 @@ router.get('/', authenticate, isViewer, async (req, res, next) => {
       created_by,
       priority,
       show_completed = 'false',
-      my_todos = 'false'
+      my_todos = 'false',
+      tag_id
     } = req.query;
 
     let whereClause = 'WHERE 1=1';
@@ -90,6 +91,11 @@ router.get('/', authenticate, isViewer, async (req, res, next) => {
       paramCount++;
     }
 
+    if (tag_id) {
+      whereClause += ` AND EXISTS (SELECT 1 FROM todo_tag_assignments tta WHERE tta.todo_id = t.id AND tta.tag_id = $${paramCount++})`;
+      params.push(tag_id);
+    }
+
     const result = await query(
       `SELECT t.*,
               u1.name as created_by_name,
@@ -102,7 +108,19 @@ router.get('/', authenticate, isViewer, async (req, res, next) => {
                 (SELECT json_agg(json_build_object('id', ti.id, 'file_path', ti.file_path, 'original_name', ti.original_name))
                  FROM todo_images ti WHERE ti.todo_id = t.id),
                 '[]'
-              ) as images
+              ) as images,
+              COALESCE(
+                (SELECT json_agg(json_build_object('id', ts.id, 'title', ts.title, 'is_completed', ts.is_completed, 'sort_order', ts.sort_order) ORDER BY ts.sort_order)
+                 FROM todo_subtasks ts WHERE ts.todo_id = t.id),
+                '[]'
+              ) as subtasks,
+              COALESCE(
+                (SELECT json_agg(json_build_object('id', tt.id, 'name', tt.name, 'color', tt.color))
+                 FROM todo_tag_assignments tta
+                 JOIN todo_tags tt ON tta.tag_id = tt.id
+                 WHERE tta.todo_id = t.id),
+                '[]'
+              ) as tags
        FROM todos t
        LEFT JOIN users u1 ON t.created_by = u1.id
        LEFT JOIN users u2 ON t.assigned_to = u2.id
@@ -530,5 +548,369 @@ router.post('/quick',
     }
   }
 );
+
+// ==================== SUBTASKS ====================
+
+// Add subtask to a todo
+router.post('/:id/subtasks',
+  authenticate,
+  isTechnician,
+  [body('title').trim().notEmpty().isLength({ max: 500 })],
+  validate,
+  async (req, res, next) => {
+    try {
+      const { title } = req.body;
+      const todoId = req.params.id;
+
+      // Verify todo exists
+      const todoCheck = await query('SELECT id FROM todos WHERE id = $1', [todoId]);
+      if (todoCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      // Get max sort order
+      const maxOrder = await query(
+        'SELECT COALESCE(MAX(sort_order), -1) + 1 as next_order FROM todo_subtasks WHERE todo_id = $1',
+        [todoId]
+      );
+
+      const result = await query(
+        `INSERT INTO todo_subtasks (todo_id, title, sort_order)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [todoId, title, maxOrder.rows[0].next_order]
+      );
+
+      res.status(201).json({ subtask: result.rows[0] });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Toggle subtask completion
+router.post('/:todoId/subtasks/:subtaskId/toggle',
+  authenticate,
+  isTechnician,
+  async (req, res, next) => {
+    try {
+      const { subtaskId } = req.params;
+
+      const result = await query(
+        `UPDATE todo_subtasks
+         SET is_completed = NOT is_completed,
+             completed_at = CASE WHEN is_completed THEN NULL ELSE CURRENT_TIMESTAMP END
+         WHERE id = $1
+         RETURNING *`,
+        [subtaskId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Subtask not found' });
+      }
+
+      res.json({ subtask: result.rows[0] });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Update subtask
+router.put('/:todoId/subtasks/:subtaskId',
+  authenticate,
+  isTechnician,
+  [body('title').optional().trim().notEmpty().isLength({ max: 500 })],
+  validate,
+  async (req, res, next) => {
+    try {
+      const { subtaskId } = req.params;
+      const { title } = req.body;
+
+      const result = await query(
+        `UPDATE todo_subtasks SET title = $1 WHERE id = $2 RETURNING *`,
+        [title, subtaskId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Subtask not found' });
+      }
+
+      res.json({ subtask: result.rows[0] });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Delete subtask
+router.delete('/:todoId/subtasks/:subtaskId',
+  authenticate,
+  isTechnician,
+  async (req, res, next) => {
+    try {
+      const { subtaskId } = req.params;
+
+      const result = await query(
+        'DELETE FROM todo_subtasks WHERE id = $1 RETURNING id',
+        [subtaskId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Subtask not found' });
+      }
+
+      res.json({ message: 'Subtask deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Reorder subtasks
+router.post('/:id/subtasks/reorder',
+  authenticate,
+  isTechnician,
+  [body('order').isArray()],
+  validate,
+  async (req, res, next) => {
+    try {
+      const { order } = req.body; // Array of { id, sort_order }
+
+      await transaction(async (client) => {
+        for (const item of order) {
+          await client.query(
+            'UPDATE todo_subtasks SET sort_order = $1 WHERE id = $2',
+            [item.sort_order, item.id]
+          );
+        }
+      });
+
+      res.json({ message: 'Subtasks reordered' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==================== TAGS ====================
+
+// Get all tags
+router.get('/tags/all', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT t.*, COUNT(tta.todo_id) as usage_count
+       FROM todo_tags t
+       LEFT JOIN todo_tag_assignments tta ON t.id = tta.tag_id
+       GROUP BY t.id
+       ORDER BY t.name`
+    );
+    res.json({ tags: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create tag
+router.post('/tags',
+  authenticate,
+  isTechnician,
+  [
+    body('name').trim().notEmpty().isLength({ max: 100 }),
+    body('color').optional().matches(/^#[0-9A-Fa-f]{6}$/)
+  ],
+  validate,
+  async (req, res, next) => {
+    try {
+      const { name, color } = req.body;
+
+      const result = await query(
+        `INSERT INTO todo_tags (name, color, created_by)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [name, color || '#6b7280', req.user.id]
+      );
+
+      res.status(201).json({ tag: result.rows[0] });
+    } catch (error) {
+      if (error.code === '23505') {
+        return res.status(400).json({ error: 'Tag name already exists' });
+      }
+      next(error);
+    }
+  }
+);
+
+// Update tag
+router.put('/tags/:tagId',
+  authenticate,
+  isTechnician,
+  [
+    body('name').optional().trim().notEmpty().isLength({ max: 100 }),
+    body('color').optional().matches(/^#[0-9A-Fa-f]{6}$/)
+  ],
+  validate,
+  async (req, res, next) => {
+    try {
+      const { tagId } = req.params;
+      const { name, color } = req.body;
+
+      const updates = [];
+      const values = [];
+      let paramCount = 1;
+
+      if (name !== undefined) {
+        updates.push(`name = $${paramCount++}`);
+        values.push(name);
+      }
+      if (color !== undefined) {
+        updates.push(`color = $${paramCount++}`);
+        values.push(color);
+      }
+
+      if (updates.length === 0) {
+        return res.status(400).json({ error: 'No updates provided' });
+      }
+
+      values.push(tagId);
+
+      const result = await query(
+        `UPDATE todo_tags SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+        values
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Tag not found' });
+      }
+
+      res.json({ tag: result.rows[0] });
+    } catch (error) {
+      if (error.code === '23505') {
+        return res.status(400).json({ error: 'Tag name already exists' });
+      }
+      next(error);
+    }
+  }
+);
+
+// Delete tag
+router.delete('/tags/:tagId',
+  authenticate,
+  isTechnician,
+  async (req, res, next) => {
+    try {
+      const { tagId } = req.params;
+
+      const result = await query(
+        'DELETE FROM todo_tags WHERE id = $1 RETURNING id',
+        [tagId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Tag not found' });
+      }
+
+      res.json({ message: 'Tag deleted' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Assign tag to todo
+router.post('/:id/tags',
+  authenticate,
+  isTechnician,
+  [body('tag_id').isUUID()],
+  validate,
+  async (req, res, next) => {
+    try {
+      const todoId = req.params.id;
+      const { tag_id } = req.body;
+
+      // Verify todo exists
+      const todoCheck = await query('SELECT id FROM todos WHERE id = $1', [todoId]);
+      if (todoCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      await query(
+        `INSERT INTO todo_tag_assignments (todo_id, tag_id)
+         VALUES ($1, $2)
+         ON CONFLICT (todo_id, tag_id) DO NOTHING`,
+        [todoId, tag_id]
+      );
+
+      res.status(201).json({ message: 'Tag assigned' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Remove tag from todo
+router.delete('/:id/tags/:tagId',
+  authenticate,
+  isTechnician,
+  async (req, res, next) => {
+    try {
+      const { id: todoId, tagId } = req.params;
+
+      await query(
+        'DELETE FROM todo_tag_assignments WHERE todo_id = $1 AND tag_id = $2',
+        [todoId, tagId]
+      );
+
+      res.json({ message: 'Tag removed' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Set reminder for todo
+router.post('/:id/reminder',
+  authenticate,
+  isTechnician,
+  [body('reminder_at').optional({ nullable: true }).isISO8601()],
+  validate,
+  async (req, res, next) => {
+    try {
+      const { reminder_at } = req.body;
+
+      const result = await query(
+        `UPDATE todos SET reminder_at = $1, reminder_sent = false WHERE id = $2 RETURNING *`,
+        [reminder_at || null, req.params.id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      res.json({ todo: result.rows[0] });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Get stats for progress bar
+router.get('/stats/summary', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status != 'completed') as pending,
+        COUNT(*) FILTER (WHERE status = 'completed') as completed,
+        COUNT(*) FILTER (WHERE due_date < CURRENT_DATE AND status != 'completed') as overdue,
+        COUNT(*) FILTER (WHERE due_date = CURRENT_DATE AND status != 'completed') as due_today,
+        COUNT(*) as total
+      FROM todos
+    `);
+
+    res.json({ stats: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;

@@ -168,6 +168,21 @@ export const todosApi = {
     });
   },
   deleteImage: (imageId) => api.delete(`/todos/images/${imageId}`),
+  getStats: () => api.get('/todos/stats/summary'),
+  setReminder: (id, reminder_at) => api.post(`/todos/${id}/reminder`, { reminder_at }),
+  // Subtasks
+  addSubtask: (todoId, title) => api.post(`/todos/${todoId}/subtasks`, { title }),
+  toggleSubtask: (todoId, subtaskId) => api.post(`/todos/${todoId}/subtasks/${subtaskId}/toggle`),
+  updateSubtask: (todoId, subtaskId, title) => api.put(`/todos/${todoId}/subtasks/${subtaskId}`, { title }),
+  deleteSubtask: (todoId, subtaskId) => api.delete(`/todos/${todoId}/subtasks/${subtaskId}`),
+  reorderSubtasks: (todoId, order) => api.post(`/todos/${todoId}/subtasks/reorder`, { order }),
+  // Tags
+  getAllTags: () => api.get('/todos/tags/all'),
+  createTag: (data) => api.post('/todos/tags', data),
+  updateTag: (tagId, data) => api.put(`/todos/tags/${tagId}`, data),
+  deleteTag: (tagId) => api.delete(`/todos/tags/${tagId}`),
+  assignTag: (todoId, tag_id) => api.post(`/todos/${todoId}/tags`, { tag_id }),
+  removeTag: (todoId, tagId) => api.delete(`/todos/${todoId}/tags/${tagId}`),
 };
 
 export const settingsApi = {
