@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -36,6 +37,30 @@ function ProtectedRoute({ children, roles }) {
 
 function App() {
   const { isAuthenticated } = useAuthStore();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Save current route to localStorage (for PWA resume)
+  useEffect(() => {
+    if (isAuthenticated && location.pathname !== '/login' && location.pathname !== '/') {
+      localStorage.setItem('kb-last-route', location.pathname);
+    }
+  }, [location.pathname, isAuthenticated]);
+
+  // Restore last route on app load (PWA resume)
+  useEffect(() => {
+    if (isAuthenticated) {
+      const lastRoute = localStorage.getItem('kb-last-route');
+      if (lastRoute && location.pathname === '/' || location.pathname === '/dashboard') {
+        // Only restore if we're on the default route
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone;
+        if (isStandalone && lastRoute && lastRoute !== '/dashboard') {
+          navigate(lastRoute, { replace: true });
+        }
+      }
+    }
+  }, [isAuthenticated]);
 
   return (
     <Routes>
