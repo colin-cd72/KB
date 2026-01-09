@@ -287,34 +287,32 @@ function RMAs() {
       const result = response.data;
 
       if (result.suggestions && result.suggestions.length > 0) {
-        // Check if there's a single high-confidence match
-        const highConfidence = result.suggestions.filter(s => s.confidence === 'high');
+        // Always show selection dialog so user can choose
+        setLookupSuggestions(result.suggestions);
+        setShowSuggestions(true);
 
-        if (highConfidence.length === 1) {
-          // Auto-select the single high-confidence match
-          const match = highConfidence[0];
-          const manufacturer = match.manufacturer && match.manufacturer !== 'Unknown' ? match.manufacturer : '';
-          setFormData(prev => ({
-            ...prev,
-            item_name: match.item_name,
-            part_number: match.part_number || prev.part_number,
-            manufacturer: manufacturer || prev.manufacturer
-          }));
-          if (manufacturer) {
-            toast.success(`Found: ${match.item_name} by ${manufacturer}`);
-          } else {
-            toast.success(`Found: ${match.item_name} (manufacturer not identified)`);
-          }
+        // Show summary in toast if available
+        if (result.search_summary) {
+          toast.success(result.search_summary);
         } else {
-          // Show selection dialog for multiple options
-          setLookupSuggestions(result.suggestions);
-          setShowSuggestions(true);
+          toast.success(`Found ${result.suggestions.length} possible match${result.suggestions.length > 1 ? 'es' : ''}`);
         }
       } else {
-        toast.error(result.search_summary || 'No products found for this part number');
+        // No suggestions found - show as info, not error
+        if (result.search_summary) {
+          toast(result.search_summary, { icon: 'ℹ️' });
+        } else {
+          toast.error('No products found for this part number. Try a different search term.');
+        }
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to lookup product');
+      const errorMsg = error.response?.data?.error || 'Failed to lookup product';
+      // Check if error message contains useful info
+      if (errorMsg.toLowerCase().includes('manufacturer') || errorMsg.toLowerCase().includes('found')) {
+        toast(errorMsg, { icon: 'ℹ️' });
+      } else {
+        toast.error(errorMsg);
+      }
     } finally {
       setLookingUp(false);
     }
