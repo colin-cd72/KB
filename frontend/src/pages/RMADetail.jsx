@@ -104,6 +104,7 @@ function RMADetail() {
   const deleteRMA = useMutation({
     mutationFn: () => rmasApi.delete(id),
     onSuccess: () => {
+      queryClient.invalidateQueries(['rmas']);
       toast.success('RMA deleted');
       navigate('/rmas');
     }
