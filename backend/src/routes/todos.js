@@ -289,17 +289,27 @@ router.post('/:id/toggle', authenticate, isTechnician, async (req, res, next) =>
       return res.status(404).json({ error: 'Todo not found' });
     }
 
-    const newStatus = current.rows[0].status === 'completed' ? 'pending' : 'completed';
+    const isCompleting = current.rows[0].status !== 'completed';
+    const newStatus = isCompleting ? 'completed' : 'pending';
 
-    const result = await query(
-      `UPDATE todos
-       SET status = $1,
-           completed_at = CASE WHEN $1 = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END,
-           completed_by = CASE WHEN $1 = 'completed' THEN $2 ELSE NULL END
-       WHERE id = $3
-       RETURNING *`,
-      [newStatus, req.user.id, req.params.id]
-    );
+    let result;
+    if (isCompleting) {
+      result = await query(
+        `UPDATE todos
+         SET status = $1, completed_at = CURRENT_TIMESTAMP, completed_by = $2
+         WHERE id = $3
+         RETURNING *`,
+        [newStatus, req.user.id, req.params.id]
+      );
+    } else {
+      result = await query(
+        `UPDATE todos
+         SET status = $1, completed_at = NULL, completed_by = NULL
+         WHERE id = $2
+         RETURNING *`,
+        [newStatus, req.params.id]
+      );
+    }
 
     res.json({ todo: result.rows[0] });
   } catch (error) {

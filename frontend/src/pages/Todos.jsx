@@ -427,15 +427,6 @@ function Todos() {
                         {todo.equipment_name}
                       </span>
                     )}
-                    {todo.images && todo.images.length > 0 && (
-                      <button
-                        onClick={() => setExpandedTodo(expandedTodo === todo.id ? null : todo.id)}
-                        className="flex items-center gap-1 text-primary-600 hover:text-primary-700"
-                      >
-                        <Image className="w-3 h-3" />
-                        {todo.images.length} image{todo.images.length > 1 ? 's' : ''}
-                      </button>
-                    )}
                     {todo.converted_to_issue_id && (
                       <Link
                         to={`/issues/${todo.converted_to_issue_id}`}
@@ -447,25 +438,25 @@ function Todos() {
                     )}
                   </div>
 
-                  {/* Images Display */}
-                  {expandedTodo === todo.id && todo.images && todo.images.length > 0 && (
+                  {/* Images Display - Always visible */}
+                  {todo.images && todo.images.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {todo.images.map((img) => (
                         <div key={img.id} className="relative group">
                           <img
                             src={`${import.meta.env.VITE_API_URL || ''}${img.file_path}`}
                             alt={img.original_name}
-                            className="w-24 h-24 object-cover rounded-lg border border-gray-200"
+                            className="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}${img.file_path}`, '_blank')}
                           />
-                          {canEdit && (
+                          {canEdit && todo.status !== 'completed' && (
                             <button
                               onClick={() => {
                                 if (confirm('Delete this image?')) {
                                   deleteImage.mutate(img.id);
                                 }
                               }}
-                              className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute -top-2 -right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
                             >
                               <X className="w-3 h-3" />
                             </button>
