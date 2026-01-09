@@ -1,9 +1,42 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs').promises;
 const { query, transaction } = require('../config/database');
 const { authenticate, isTechnician, isViewer } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Configure multer for todo image uploads
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/todos');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -64,7 +97,12 @@ router.get('/', authenticate, isViewer, async (req, res, next) => {
               u3.name as completed_by_name,
               c.name as category_name,
               e.name as equipment_name,
-              i.title as converted_issue_title
+              i.title as converted_issue_title,
+              COALESCE(
+                (SELECT json_agg(json_build_object('id', ti.id, 'file_path', ti.file_path, 'original_name', ti.original_name))
+                 FROM todo_images ti WHERE ti.todo_id = t.id),
+                '[]'
+              ) as images
        FROM todos t
        LEFT JOIN users u1 ON t.created_by = u1.id
        LEFT JOIN users u2 ON t.assigned_to = u2.id
@@ -371,6 +409,112 @@ router.post('/reorder',
       });
 
       res.json({ message: 'Todos reordered' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Upload images to a todo
+router.post('/:id/images',
+  authenticate,
+  isTechnician,
+  upload.array('images', 5),
+  async (req, res, next) => {
+    try {
+      const todoId = req.params.id;
+
+      // Verify todo exists
+      const todoCheck = await query('SELECT id FROM todos WHERE id = $1', [todoId]);
+      if (todoCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: 'No images provided' });
+      }
+
+      const images = [];
+      for (const file of req.files) {
+        const result = await query(
+          `INSERT INTO todo_images (todo_id, file_path, original_name, uploaded_by)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [todoId, `/uploads/todos/${file.filename}`, file.originalname, req.user.id]
+        );
+        images.push(result.rows[0]);
+      }
+
+      res.status(201).json({ images });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Get images for a todo
+router.get('/:id/images', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT * FROM todo_images WHERE todo_id = $1 ORDER BY created_at`,
+      [req.params.id]
+    );
+    res.json({ images: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete an image
+router.delete('/images/:imageId', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    // Get image info
+    const imageResult = await query(
+      'SELECT * FROM todo_images WHERE id = $1',
+      [req.params.imageId]
+    );
+
+    if (imageResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const image = imageResult.rows[0];
+
+    // Delete file from disk
+    const filePath = path.join(__dirname, '../../', image.file_path);
+    try {
+      await fs.unlink(filePath);
+    } catch (err) {
+      console.error('Failed to delete file:', err);
+    }
+
+    // Delete from database
+    await query('DELETE FROM todo_images WHERE id = $1', [req.params.imageId]);
+
+    res.json({ message: 'Image deleted' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Quick add todo (minimal data)
+router.post('/quick',
+  authenticate,
+  isTechnician,
+  [body('title').trim().notEmpty().isLength({ max: 500 })],
+  validate,
+  async (req, res, next) => {
+    try {
+      const { title } = req.body;
+
+      const result = await query(
+        `INSERT INTO todos (title, priority, created_by)
+         VALUES ($1, 'medium', $2)
+         RETURNING *`,
+        [title, req.user.id]
+      );
+
+      res.status(201).json({ todo: result.rows[0] });
     } catch (error) {
       next(error);
     }

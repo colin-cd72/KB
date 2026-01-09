@@ -16,7 +16,10 @@ import {
   X,
   Filter,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Image,
+  Upload,
+  Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -28,6 +31,10 @@ function Todos() {
   const [editingTodo, setEditingTodo] = useState(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [filterAssigned, setFilterAssigned] = useState('');
+  const [quickAddText, setQuickAddText] = useState('');
+  const [pendingImages, setPendingImages] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [expandedTodo, setExpandedTodo] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -117,6 +124,49 @@ function Todos() {
       toast.success('Converted to issue');
     },
   });
+
+  const quickAddTodo = useMutation({
+    mutationFn: (title) => todosApi.quickAdd(title),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['todos']);
+      setQuickAddText('');
+      toast.success('Todo added');
+    },
+  });
+
+  const uploadImages = useMutation({
+    mutationFn: ({ todoId, files }) => todosApi.uploadImages(todoId, files),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['todos']);
+      setPendingImages([]);
+      toast.success('Images uploaded');
+    },
+  });
+
+  const deleteImage = useMutation({
+    mutationFn: (imageId) => todosApi.deleteImage(imageId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['todos']);
+      toast.success('Image deleted');
+    },
+  });
+
+  const handleQuickAdd = (e) => {
+    e.preventDefault();
+    if (quickAddText.trim()) {
+      quickAddTodo.mutate(quickAddText.trim());
+    }
+  };
+
+  const handleImageUpload = async (todoId, files) => {
+    if (files.length === 0) return;
+    setUploadingImages(true);
+    try {
+      await uploadImages.mutateAsync({ todoId, files: Array.from(files) });
+    } finally {
+      setUploadingImages(false);
+    }
+  };
 
   const resetForm = () => {
     setShowForm(false);
@@ -240,6 +290,32 @@ function Todos() {
         )}
       </div>
 
+      {/* Quick Add */}
+      {canEdit && (
+        <form onSubmit={handleQuickAdd} className="card p-4">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={quickAddText}
+              onChange={(e) => setQuickAddText(e.target.value)}
+              placeholder="Quick add a todo... (press Enter)"
+              className="input flex-1"
+            />
+            <button
+              type="submit"
+              disabled={!quickAddText.trim() || quickAddTodo.isPending}
+              className="btn btn-primary px-6"
+            >
+              {quickAddTodo.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+        </form>
+      )}
+
       {/* Filters */}
       <div className="card p-4">
         <div className="flex flex-wrap items-center gap-4">
@@ -351,6 +427,15 @@ function Todos() {
                         {todo.equipment_name}
                       </span>
                     )}
+                    {todo.images && todo.images.length > 0 && (
+                      <button
+                        onClick={() => setExpandedTodo(expandedTodo === todo.id ? null : todo.id)}
+                        className="flex items-center gap-1 text-primary-600 hover:text-primary-700"
+                      >
+                        <Image className="w-3 h-3" />
+                        {todo.images.length} image{todo.images.length > 1 ? 's' : ''}
+                      </button>
+                    )}
                     {todo.converted_to_issue_id && (
                       <Link
                         to={`/issues/${todo.converted_to_issue_id}`}
@@ -361,11 +446,54 @@ function Todos() {
                       </Link>
                     )}
                   </div>
+
+                  {/* Images Display */}
+                  {expandedTodo === todo.id && todo.images && todo.images.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {todo.images.map((img) => (
+                        <div key={img.id} className="relative group">
+                          <img
+                            src={`${import.meta.env.VITE_API_URL || ''}${img.file_path}`}
+                            alt={img.original_name}
+                            className="w-24 h-24 object-cover rounded-lg border border-gray-200"
+                            onClick={() => window.open(`${import.meta.env.VITE_API_URL || ''}${img.file_path}`, '_blank')}
+                          />
+                          {canEdit && (
+                            <button
+                              onClick={() => {
+                                if (confirm('Delete this image?')) {
+                                  deleteImage.mutate(img.id);
+                                }
+                              }}
+                              className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
                 {canEdit && todo.status !== 'completed' && (
                   <div className="flex items-center gap-1">
+                    {/* Image Upload */}
+                    <label className="p-2 hover:bg-gray-100 rounded-lg cursor-pointer" title="Add Image">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleImageUpload(todo.id, e.target.files)}
+                      />
+                      {uploadingImages ? (
+                        <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
+                      ) : (
+                        <Image className="w-4 h-4 text-gray-500" />
+                      )}
+                    </label>
                     {!todo.converted_to_issue_id && (
                       <button
                         onClick={() => {

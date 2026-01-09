@@ -154,11 +154,20 @@ export const todosApi = {
   getAll: (params) => api.get('/todos', { params }),
   getOne: (id) => api.get(`/todos/${id}`),
   create: (data) => api.post('/todos', data),
+  quickAdd: (title) => api.post('/todos/quick', { title }),
   update: (id, data) => api.put(`/todos/${id}`, data),
   delete: (id) => api.delete(`/todos/${id}`),
   toggle: (id) => api.post(`/todos/${id}/toggle`),
   convertToIssue: (id) => api.post(`/todos/${id}/convert-to-issue`),
   reorder: (order) => api.post('/todos/reorder', { order }),
+  uploadImages: (id, files) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('images', file));
+    return api.post(`/todos/${id}/images`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  deleteImage: (imageId) => api.delete(`/todos/images/${imageId}`),
 };
 
 export const settingsApi = {
