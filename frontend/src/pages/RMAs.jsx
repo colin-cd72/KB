@@ -292,13 +292,19 @@ function RMAs() {
 
         if (highConfidence.length === 1) {
           // Auto-select the single high-confidence match
+          const match = highConfidence[0];
+          const manufacturer = match.manufacturer && match.manufacturer !== 'Unknown' ? match.manufacturer : '';
           setFormData(prev => ({
             ...prev,
-            item_name: highConfidence[0].item_name,
-            part_number: highConfidence[0].part_number || prev.part_number,
-            manufacturer: highConfidence[0].manufacturer || prev.manufacturer
+            item_name: match.item_name,
+            part_number: match.part_number || prev.part_number,
+            manufacturer: manufacturer || prev.manufacturer
           }));
-          toast.success(`Found: ${highConfidence[0].item_name} by ${highConfidence[0].manufacturer || 'Unknown'}`);
+          if (manufacturer) {
+            toast.success(`Found: ${match.item_name} by ${manufacturer}`);
+          } else {
+            toast.success(`Found: ${match.item_name} (manufacturer not identified)`);
+          }
         } else {
           // Show selection dialog for multiple options
           setLookupSuggestions(result.suggestions);
@@ -315,15 +321,20 @@ function RMAs() {
   };
 
   const selectSuggestion = (suggestion) => {
+    const manufacturer = suggestion.manufacturer && suggestion.manufacturer !== 'Unknown' ? suggestion.manufacturer : '';
     setFormData(prev => ({
       ...prev,
       item_name: suggestion.item_name,
       part_number: suggestion.part_number || prev.part_number,
-      manufacturer: suggestion.manufacturer || prev.manufacturer
+      manufacturer: manufacturer || prev.manufacturer
     }));
     setShowSuggestions(false);
     setLookupSuggestions([]);
-    toast.success(`Selected: ${suggestion.item_name}`);
+    if (manufacturer) {
+      toast.success(`Selected: ${suggestion.item_name} by ${manufacturer}`);
+    } else {
+      toast.success(`Selected: ${suggestion.item_name}`);
+    }
   };
 
   // Check for suggested contact when part number changes

@@ -543,30 +543,35 @@ router.post('/lookup-model', authenticate, isTechnician, async (req, res, next) 
 
 I need you to:
 1. Search the web to find what product this part number belongs to
-2. Verify the results are real products that actually exist
-3. If you find multiple possible matches, list them all
-4. Include the source URLs where you found the information
+2. IMPORTANT: Identify the manufacturer/brand (e.g., Dell, HP, Cisco, Samsung, etc.)
+3. Verify the results are real products that actually exist
+4. If you find multiple possible matches, list them all
+5. Include the source URLs where you found the information
 
 After searching, respond with ONLY valid JSON in this exact format:
 {
   "suggestions": [
     {
       "item_name": "Full Product Name",
-      "manufacturer": "Brand/Manufacturer",
+      "manufacturer": "Brand/Manufacturer Name",
       "part_number": "The actual part number",
       "confidence": "high/medium/low",
       "source_url": "URL where you found this"
     }
   ],
-  "search_summary": "Brief explanation of what you found"
+  "search_summary": "Brief explanation of what you found",
+  "manufacturer_found": true or false
 }
 
 Rules:
+- ALWAYS try to identify the manufacturer - look at the URL domain, product listing, or part number prefix
+- Common manufacturer prefixes: Dell (CN-), HP (HP-, SP#), Lenovo (FRU), Cisco (WS-, C9-), etc.
 - Only include products you actually found in search results with real URLs
 - "high" confidence = exact part number match found on manufacturer or retailer site
 - "medium" confidence = partial match or found on forum/secondary source
 - "low" confidence = uncertain match, might be similar product
-- If nothing found, return empty suggestions array
+- If nothing found, return empty suggestions array with search_summary explaining why
+- If manufacturer unknown, set manufacturer to "Unknown" and manufacturer_found to false
 - List up to 5 possible matches, ordered by confidence`
         }
       ]
