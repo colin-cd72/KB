@@ -46,10 +46,17 @@ function Users() {
 
   const createUser = useMutation({
     mutationFn: (data) => usersApi.create(data),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries(['users']);
       resetForm();
-      toast.success('User created');
+      if (response.data.temporaryPassword) {
+        toast.success(
+          `User created! Temp password: ${response.data.temporaryPassword}`,
+          { duration: 10000 }
+        );
+      } else {
+        toast.success('User created');
+      }
     },
   });
 
@@ -277,15 +284,18 @@ function Users() {
               </div>
               {!editingUser && (
                 <div>
-                  <label className="label">Password *</label>
+                  <label className="label">Password</label>
                   <input
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="input"
-                    required={!editingUser}
-                    minLength={8}
+                    placeholder="Leave blank to auto-generate"
+                    minLength={formData.password ? 8 : 0}
                   />
+                  <p className="mt-1 text-xs text-dark-500">
+                    If left blank, a temporary password will be generated. User must change it on first login.
+                  </p>
                 </div>
               )}
               <div>

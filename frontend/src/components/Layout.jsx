@@ -23,7 +23,8 @@ import {
   Package,
   Check,
   Loader2,
-  FileText
+  FileText,
+  Activity
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -40,6 +41,7 @@ const navigation = [
 
 const adminNavigation = [
   { name: 'Users', href: '/users', icon: Users, roles: ['admin'], description: 'User management' },
+  { name: 'Activity Log', href: '/activity-log', icon: Activity, roles: ['admin'], description: 'System audit trail' },
 ];
 
 function Layout() {

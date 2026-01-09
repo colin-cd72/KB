@@ -5,6 +5,7 @@ const { body, validationResult } = require('express-validator');
 const { query } = require('../config/database');
 const { authenticate, isAdmin } = require('../middleware/auth');
 const { sendEmail, templates } = require('../services/emailService');
+const { logActivity } = require('./activityLogs');
 
 const router = express.Router();
 
@@ -132,6 +133,9 @@ router.post('/',
 
       const user = result.rows[0];
 
+      // Log activity
+      logActivity(req.user.id, 'create', 'user', user.id, user.name, { role, email }, req);
+
       // Send welcome email if requested
       let emailSent = false;
       if (send_welcome_email) {
@@ -148,7 +152,7 @@ router.post('/',
       res.status(201).json({
         user,
         welcome_email_sent: emailSent,
-        temporary_password: isTemporaryPassword ? password : undefined
+        temporaryPassword: isTemporaryPassword ? password : undefined
       });
     } catch (error) {
       next(error);
@@ -217,7 +221,11 @@ router.put('/:id',
         return res.status(404).json({ error: 'User not found' });
       }
 
-      res.json({ user: result.rows[0] });
+      const updatedUser = result.rows[0];
+      // Log activity
+      logActivity(req.user.id, 'update', 'user', updatedUser.id, updatedUser.name, { email, name, role, is_active }, req);
+
+      res.json({ user: updatedUser });
     } catch (error) {
       next(error);
     }
@@ -290,6 +298,9 @@ router.delete('/:id', authenticate, isAdmin, async (req, res, next) => {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
+    // Get user info before deletion for logging
+    const userInfo = await query('SELECT name, email FROM users WHERE id = $1', [req.params.id]);
+
     const result = await query(
       'DELETE FROM users WHERE id = $1 RETURNING id',
       [req.params.id]
@@ -298,6 +309,10 @@ router.delete('/:id', authenticate, isAdmin, async (req, res, next) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    // Log activity
+    const deletedUser = userInfo.rows[0];
+    logActivity(req.user.id, 'delete', 'user', req.params.id, deletedUser?.name, { email: deletedUser?.email }, req);
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {

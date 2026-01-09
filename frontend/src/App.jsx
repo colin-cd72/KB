@@ -18,6 +18,7 @@ import RMADetail from './pages/RMADetail';
 import Articles from './pages/Articles';
 import ArticleDetail from './pages/ArticleDetail';
 import ArticleEditor from './pages/ArticleEditor';
+import ActivityLog from './pages/ActivityLog';
 
 function ProtectedRoute({ children, roles }) {
   const { user, isAuthenticated } = useAuthStore();
@@ -87,6 +88,11 @@ function App() {
         <Route path="users" element={
           <ProtectedRoute roles={['admin']}>
             <Users />
+          </ProtectedRoute>
+        } />
+        <Route path="activity-log" element={
+          <ProtectedRoute roles={['admin']}>
+            <ActivityLog />
           </ProtectedRoute>
         } />
         <Route path="settings" element={<Settings />} />

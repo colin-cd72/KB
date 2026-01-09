@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const { query } = require('../config/database');
 const { authenticate } = require('../middleware/auth');
+const { logActivity } = require('./activityLogs');
 
 const router = express.Router();
 
@@ -144,6 +145,9 @@ router.post('/login',
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
       );
+
+      // Log login activity
+      logActivity(user.id, 'login', 'user', user.id, user.name, {}, req);
 
       res.json({
         message: 'Login successful',
