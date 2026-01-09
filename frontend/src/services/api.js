@@ -153,6 +153,9 @@ export const settingsApi = {
   testAI: (api_key) => api.post('/settings/ai/test', { api_key }),
   getNotifications: () => api.get('/settings/notifications'),
   updateNotifications: (data) => api.put('/settings/notifications', data),
+  getTracking: () => api.get('/settings/tracking'),
+  updateTracking: (api_key) => api.put('/settings/tracking', { api_key }),
+  testTracking: (api_key) => api.post('/settings/tracking/test', { api_key }),
 };
 
 export const emailApi = {
@@ -186,6 +189,8 @@ export const rmasApi = {
   lookupModel: (model_number, part_number) => api.post('/rmas/lookup-model', { model_number, part_number }),
   getContacts: (params) => api.get('/rmas/contacts', { params }),
   getReports: (params) => api.get('/rmas/reports', { params }),
+  getTracking: (id) => api.get(`/rmas/${id}/tracking`),
+  checkTracking: (id) => api.post(`/rmas/${id}/check-tracking`),
 };
 
 export default api;

@@ -29,7 +29,6 @@ import clsx from 'clsx';
 
 const STATUS_CONFIG = {
   pending: { label: 'Pending', icon: Clock, color: 'text-warning-600 bg-warning-50 border-warning-200' },
-  approved: { label: 'Approved', icon: CheckCircle, color: 'text-primary-600 bg-primary-50 border-primary-200' },
   shipped: { label: 'Shipped', icon: Truck, color: 'text-accent-600 bg-accent-50 border-accent-200' },
   received: { label: 'Received', icon: PackageCheck, color: 'text-success-600 bg-success-50 border-success-200' },
   complete: { label: 'Complete', icon: CheckCircle, color: 'text-success-600 bg-success-50 border-success-200' }
@@ -1100,7 +1099,7 @@ function RMAs() {
                     </div>
                     <div className="bg-warning-50 rounded-lg p-4 text-center">
                       <p className="text-2xl font-bold text-warning-700">
-                        {(parseInt(reportData.summary?.pending || 0) + parseInt(reportData.summary?.approved || 0) + parseInt(reportData.summary?.shipped || 0))}
+                        {(parseInt(reportData.summary?.pending || 0) + parseInt(reportData.summary?.shipped || 0))}
                       </p>
                       <p className="text-sm text-dark-500">In Progress</p>
                     </div>

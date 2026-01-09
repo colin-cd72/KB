@@ -20,14 +20,15 @@ import {
   X,
   Package,
   History,
-  MessageSquare
+  MessageSquare,
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
 const STATUS_CONFIG = {
-  pending: { label: 'Pending', icon: Clock, color: 'text-warning-600 bg-warning-50 border-warning-200', next: 'approved' },
-  approved: { label: 'Approved', icon: CheckCircle, color: 'text-primary-600 bg-primary-50 border-primary-200', next: 'shipped' },
+  pending: { label: 'Pending', icon: Clock, color: 'text-warning-600 bg-warning-50 border-warning-200', next: 'shipped' },
   shipped: { label: 'Shipped', icon: Truck, color: 'text-accent-600 bg-accent-50 border-accent-200', next: 'received' },
   received: { label: 'Received', icon: PackageCheck, color: 'text-success-600 bg-success-50 border-success-200', next: 'complete' },
   complete: { label: 'Complete', icon: CheckCircle, color: 'text-success-600 bg-success-50 border-success-200', next: null }
@@ -50,6 +51,8 @@ function RMADetail() {
   const [editing, setEditing] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [editData, setEditData] = useState({});
+  const [showShippingModal, setShowShippingModal] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState('');
 
   const canEdit = user?.role === 'admin' || user?.role === 'technician';
   const isAdmin = user?.role === 'admin';
@@ -106,6 +109,22 @@ function RMADetail() {
     }
   });
 
+  const checkTracking = useMutation({
+    mutationFn: () => rmasApi.checkTracking(id),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries(['rma', id]);
+      queryClient.invalidateQueries(['rmas']);
+      if (response.data.updated) {
+        toast.success(`Package delivered! RMA updated to received status.`);
+      } else {
+        toast.success(`Tracking checked: ${response.data.tracking_status?.status || 'Status unknown'}`);
+      }
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to check tracking');
+    }
+  });
+
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -152,6 +171,31 @@ function RMADetail() {
     const diffTime = Math.abs(endDate - shippedDate);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
+  };
+
+  // Generate tracking URL based on tracking number format
+  const getTrackingUrl = (trackingNumber) => {
+    if (!trackingNumber) return null;
+    const num = trackingNumber.replace(/\s+/g, '').toUpperCase();
+
+    // USPS patterns
+    if (/^9[2-5]\d{20}$/.test(num) || /^[A-Z]{2}\d{9}US$/.test(num) || /^420\d{27}$/.test(num)) {
+      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${num}`;
+    }
+    // UPS patterns
+    if (/^1Z[A-Z0-9]{16}$/.test(num) || /^T\d{10}$/.test(num)) {
+      return `https://www.ups.com/track?tracknum=${num}`;
+    }
+    // FedEx patterns
+    if (/^\d{12,15}$/.test(num) || /^\d{20}$/.test(num) || /^(96|98)\d{20}$/.test(num)) {
+      return `https://www.fedex.com/fedextrack/?trknbr=${num}`;
+    }
+    // DHL patterns
+    if (/^\d{10,11}$/.test(num) || /^[A-Z]{3}\d{7}$/.test(num)) {
+      return `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${num}`;
+    }
+    // Default to Google search
+    return `https://www.google.com/search?q=track+package+${num}`;
   };
 
   const saveEdit = () => {
@@ -233,11 +277,11 @@ function RMADetail() {
           <div className="card p-6">
             <h3 className="font-semibold text-dark-900 mb-4">Status Progress</h3>
             <div className="flex items-center justify-between">
-              {['pending', 'approved', 'shipped', 'received', 'complete'].map((status, idx) => {
+              {['pending', 'shipped', 'received', 'complete'].map((status, idx) => {
                 const config = STATUS_CONFIG[status];
                 const Icon = config.icon;
                 const isActive = rma.status === status;
-                const isPast = ['pending', 'approved', 'shipped', 'received', 'complete'].indexOf(rma.status) > idx;
+                const isPast = ['pending', 'shipped', 'received', 'complete'].indexOf(rma.status) > idx;
 
                 return (
                   <div key={status} className="flex items-center flex-1">
@@ -249,7 +293,7 @@ function RMADetail() {
                     )}>
                       <Icon className="w-5 h-5" />
                     </div>
-                    {idx < 4 && (
+                    {idx < 3 && (
                       <div className={clsx(
                         'flex-1 h-1 mx-2',
                         isPast ? 'bg-success-500' : 'bg-dark-200'
@@ -261,7 +305,6 @@ function RMADetail() {
             </div>
             <div className="flex justify-between mt-2 text-xs text-dark-500">
               <span>Pending</span>
-              <span>Approved</span>
               <span>Shipped</span>
               <span>Received</span>
               <span>Complete</span>
@@ -271,7 +314,15 @@ function RMADetail() {
             {canEdit && statusConfig?.next && (
               <div className="mt-6 pt-4 border-t border-dark-100 flex items-center gap-3">
                 <button
-                  onClick={() => updateStatus.mutate(statusConfig.next)}
+                  onClick={() => {
+                    // If moving to shipped status, show tracking modal
+                    if (statusConfig.next === 'shipped') {
+                      setTrackingNumber(rma.tracking_number || '');
+                      setShowShippingModal(true);
+                    } else {
+                      updateStatus.mutate(statusConfig.next);
+                    }
+                  }}
                   disabled={updateStatus.isPending}
                   className="btn btn-primary flex items-center gap-2"
                 >
@@ -460,7 +511,31 @@ function RMADetail() {
                 {rma.tracking_number && (
                   <div>
                     <dt className="text-sm text-dark-500">Tracking Number</dt>
-                    <dd className="font-mono font-medium text-dark-900">{rma.tracking_number}</dd>
+                    <dd className="font-mono font-medium text-dark-900 flex items-center gap-2">
+                      <a
+                        href={getTrackingUrl(rma.tracking_number)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                      >
+                        {rma.tracking_number}
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                      {canEdit && rma.status === 'shipped' && (
+                        <button
+                          onClick={() => checkTracking.mutate()}
+                          disabled={checkTracking.isPending}
+                          className="p-1 hover:bg-dark-100 rounded text-dark-500 hover:text-primary-600"
+                          title="Check tracking status"
+                        >
+                          {checkTracking.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
+                    </dd>
                   </div>
                 )}
                 {rma.resolution && (
@@ -608,12 +683,6 @@ function RMADetail() {
                 <p className="font-medium">{new Date(rma.created_at).toLocaleString()}</p>
                 <p className="text-dark-500">by {rma.created_by_name}</p>
               </div>
-              {rma.approved_at && (
-                <div>
-                  <p className="text-dark-500">Approved</p>
-                  <p className="font-medium">{new Date(rma.approved_at).toLocaleString()}</p>
-                </div>
-              )}
               {rma.shipped_at && (
                 <div>
                   <p className="text-dark-500">Shipped</p>
@@ -812,6 +881,69 @@ function RMADetail() {
           </div>
         </div>
       </div>
+
+      {/* Shipping Modal */}
+      {showShippingModal && (
+        <div className="modal-overlay" onClick={() => setShowShippingModal(false)}>
+          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Truck className="w-5 h-5 text-primary-600" />
+                Mark as Shipped
+              </h2>
+              <button onClick={() => setShowShippingModal(false)} className="btn-icon">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="modal-body space-y-4">
+              <div>
+                <label className="label">Tracking Number</label>
+                <input
+                  type="text"
+                  value={trackingNumber}
+                  onChange={(e) => setTrackingNumber(e.target.value)}
+                  className="input font-mono"
+                  placeholder="Enter tracking number"
+                  autoFocus
+                />
+                <p className="text-sm text-dark-500 mt-1">
+                  Enter the tracking number to enable automatic delivery tracking
+                </p>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                onClick={() => setShowShippingModal(false)}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  // First update tracking number if provided
+                  if (trackingNumber && trackingNumber !== rma.tracking_number) {
+                    await rmasApi.update(id, { tracking_number: trackingNumber });
+                  }
+                  // Then update status
+                  updateStatus.mutate('shipped');
+                  setShowShippingModal(false);
+                }}
+                disabled={updateStatus.isPending}
+                className="btn btn-primary flex items-center gap-2"
+              >
+                {updateStatus.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Truck className="w-4 h-4" />
+                )}
+                {trackingNumber ? 'Ship with Tracking' : 'Ship without Tracking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

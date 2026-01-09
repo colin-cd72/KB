@@ -27,7 +27,9 @@ import {
   Send,
   Server,
   Sliders,
-  Clock
+  Clock,
+  Truck,
+  Package
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -108,6 +110,14 @@ function Settings() {
   });
   const [notifSettingsLoading, setNotifSettingsLoading] = useState(false);
 
+  // Tracking API Settings state
+  const [trackingSettings, setTrackingSettings] = useState(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [trackingTesting, setTrackingTesting] = useState(false);
+  const [trackingTestResult, setTrackingTestResult] = useState(null);
+  const [newTrackingApiKey, setNewTrackingApiKey] = useState('');
+  const [showTrackingApiKey, setShowTrackingApiKey] = useState(false);
+
   const isAdmin = user?.role === 'admin';
 
   const profileForm = useForm({
@@ -159,6 +169,13 @@ function Settings() {
   useEffect(() => {
     if (isAdmin && activeTab === 'admin-notifications') {
       loadNotifSettings();
+    }
+  }, [isAdmin, activeTab]);
+
+  // Load tracking settings for admins
+  useEffect(() => {
+    if (isAdmin && activeTab === 'tracking') {
+      loadTrackingSettings();
     }
   }, [isAdmin, activeTab]);
 
@@ -320,6 +337,63 @@ function Settings() {
       toast.error('Failed to save notification settings');
     } finally {
       setNotifSettingsLoading(false);
+    }
+  };
+
+  const loadTrackingSettings = async () => {
+    try {
+      setTrackingLoading(true);
+      const response = await settingsApi.getTracking();
+      setTrackingSettings(response.data);
+    } catch (error) {
+      console.error('Failed to load tracking settings:', error);
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
+
+  const handleTestTrackingApiKey = async () => {
+    setTrackingTesting(true);
+    setTrackingTestResult(null);
+    try {
+      const response = await settingsApi.testTracking(newTrackingApiKey || undefined);
+      setTrackingTestResult({
+        success: true,
+        ...response.data
+      });
+    } catch (error) {
+      setTrackingTestResult({
+        success: false,
+        error: error.response?.data?.error || 'Test failed'
+      });
+    } finally {
+      setTrackingTesting(false);
+    }
+  };
+
+  const handleSaveTrackingApiKey = async () => {
+    if (!newTrackingApiKey) {
+      toast.error('Please enter an API key');
+      return;
+    }
+
+    setTrackingLoading(true);
+    try {
+      const response = await settingsApi.updateTracking(newTrackingApiKey);
+      setTrackingSettings(prev => ({
+        ...prev,
+        has_api_key: true,
+        api_key_masked: response.data.api_key_masked
+      }));
+      setNewTrackingApiKey('');
+      setTrackingTestResult(null);
+      toast.success('Tracking API key saved successfully');
+      // Reload to get updated quota
+      loadTrackingSettings();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to save API key');
+    } finally {
+      setTrackingLoading(false);
     }
   };
 
@@ -492,6 +566,20 @@ function Settings() {
               >
                 <Bot className="w-4 h-4" />
                 AI
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('tracking')}
+                className={clsx(
+                  'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap',
+                  activeTab === 'tracking'
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-dark-500 hover:text-dark-700'
+                )}
+              >
+                <Truck className="w-4 h-4" />
+                Tracking
               </button>
             )}
           </nav>
@@ -1491,6 +1579,188 @@ function Settings() {
                       <li>• Duplicate issue detection</li>
                       <li>• Related issue recommendations</li>
                       <li>• Automatic manual content summarization</li>
+                    </ul>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Tracking API Tab */}
+          {activeTab === 'tracking' && isAdmin && (
+            <div className="space-y-6">
+              {trackingLoading && !trackingSettings ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+                </div>
+              ) : (
+                <>
+                  {/* Current Status */}
+                  <div className="p-4 rounded-xl bg-dark-50 border border-dark-100">
+                    <div className="flex items-center gap-3">
+                      <div className={clsx(
+                        'w-10 h-10 rounded-xl flex items-center justify-center',
+                        trackingSettings?.has_api_key
+                          ? 'bg-success-100 text-success-600'
+                          : 'bg-warning-100 text-warning-600'
+                      )}>
+                        {trackingSettings?.has_api_key ? (
+                          <CheckCircle className="w-5 h-5" />
+                        ) : (
+                          <AlertTriangle className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-dark-900">
+                          {trackingSettings?.has_api_key ? '17TRACK API Configured' : 'No API Key Configured'}
+                        </p>
+                        <p className="text-sm text-dark-500">
+                          {trackingSettings?.has_api_key
+                            ? `Current key: ${trackingSettings.api_key_masked}`
+                            : 'Package tracking features require an API key'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quota Display */}
+                  {trackingSettings?.quota && (
+                    <div className="p-4 rounded-xl bg-accent-50 border border-accent-100">
+                      <div className="flex items-center gap-3">
+                        <Package className="w-5 h-5 text-accent-600" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-accent-900">Monthly Quota</p>
+                          <p className="text-sm text-accent-700">
+                            {trackingSettings.quota.used} / {trackingSettings.quota.total} used
+                            ({trackingSettings.quota.remaining} remaining)
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="w-24 h-2 bg-accent-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-accent-600 rounded-full"
+                              style={{ width: `${(trackingSettings.quota.used / trackingSettings.quota.total) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* API Key Input */}
+                  <div>
+                    <label className="label flex items-center gap-2">
+                      <Key className="w-4 h-4" />
+                      {trackingSettings?.has_api_key ? 'Update API Key' : 'Enter 17TRACK API Key'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showTrackingApiKey ? 'text' : 'password'}
+                        value={newTrackingApiKey}
+                        onChange={(e) => setNewTrackingApiKey(e.target.value)}
+                        className="input pr-12 font-mono text-sm"
+                        placeholder="Enter your 17TRACK API key..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowTrackingApiKey(!showTrackingApiKey)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-400 hover:text-dark-600"
+                      >
+                        {showTrackingApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-sm text-dark-500">
+                      Get your API key from{' '}
+                      <a
+                        href="https://www.17track.net/en/api"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        17track.net/api
+                      </a>
+                      {' '}(100 free tracking numbers/month)
+                    </p>
+                  </div>
+
+                  {/* Test Result */}
+                  {trackingTestResult && (
+                    <div className={clsx(
+                      'p-4 rounded-xl border',
+                      trackingTestResult.success
+                        ? 'bg-success-50 border-success-200'
+                        : 'bg-danger-50 border-danger-200'
+                    )}>
+                      <div className="flex items-start gap-3">
+                        {trackingTestResult.success ? (
+                          <CheckCircle className="w-5 h-5 text-success-600 mt-0.5" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-danger-600 mt-0.5" />
+                        )}
+                        <div className="flex-1">
+                          <p className={clsx(
+                            'font-semibold',
+                            trackingTestResult.success ? 'text-success-700' : 'text-danger-700'
+                          )}>
+                            {trackingTestResult.success ? 'Connection Successful' : 'Connection Failed'}
+                          </p>
+                          {trackingTestResult.success ? (
+                            <div className="mt-2 text-sm text-success-600 space-y-1">
+                              <p>Response time: {trackingTestResult.response_time_ms}ms</p>
+                              {trackingTestResult.quota && (
+                                <p>Quota: {trackingTestResult.quota.used} / {trackingTestResult.quota.total} used</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="mt-1 text-sm text-danger-600">{trackingTestResult.error}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleTestTrackingApiKey}
+                      disabled={trackingTesting}
+                      className="btn btn-secondary flex items-center gap-2"
+                    >
+                      {trackingTesting ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Zap className="w-5 h-5" />
+                      )}
+                      Test Connection
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveTrackingApiKey}
+                      disabled={!newTrackingApiKey || trackingLoading}
+                      className="btn btn-primary flex items-center gap-2"
+                    >
+                      {trackingLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Save className="w-5 h-5" />
+                      )}
+                      Save API Key
+                    </button>
+                  </div>
+
+                  {/* Info Section */}
+                  <div className="mt-6 p-4 rounded-xl bg-primary-50 border border-primary-100">
+                    <h3 className="font-semibold text-primary-900 flex items-center gap-2">
+                      <Truck className="w-5 h-5" />
+                      Package Tracking Features
+                    </h3>
+                    <ul className="mt-2 text-sm text-primary-700 space-y-1">
+                      <li>• Automatic carrier detection (USPS, UPS, FedEx, DHL)</li>
+                      <li>• Real-time tracking status updates</li>
+                      <li>• Auto-update RMA status when packages are delivered</li>
+                      <li>• Tracking links direct to carrier websites</li>
+                      <li>• Periodic background checks every 4 hours</li>
                     </ul>
                   </div>
                 </>

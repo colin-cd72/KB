@@ -38,9 +38,12 @@ const upload = multer({
   }
 });
 
-// Status flow
-const STATUS_ORDER = ['pending', 'approved', 'shipped', 'received', 'complete'];
+// Status flow (no longer requires approval - goes directly to shipped)
+const STATUS_ORDER = ['pending', 'shipped', 'received', 'complete'];
 const RESOLUTIONS = ['replaced', 'repaired', 'returned'];
+
+// Import tracking service
+const { detectCarrier, getTrackingUrl, checkTrackingStatus, getQuota17Track } = require('../services/trackingService');
 
 // Get all RMAs with filters
 router.get('/', authenticate, async (req, res, next) => {
@@ -276,10 +279,9 @@ router.post('/:id/status', authenticate, isTechnician, async (req, res, next) =>
 
     // Set timestamp fields based on status
     let timestampField = '';
-    if (status === 'approved') timestampField = ', approved_at = NOW()';
-    else if (status === 'shipped') timestampField = ', shipped_at = NOW()';
+    if (status === 'shipped') timestampField = ', shipped_at = NOW()';
     else if (status === 'received') timestampField = ', received_at = NOW()';
-    else if (status === 'complete' || status === 'rejected') timestampField = ', completed_at = NOW()';
+    else if (status === 'complete') timestampField = ', completed_at = NOW()';
 
     const result = await query(`
       UPDATE rmas SET status = $1, updated_at = NOW() ${timestampField}
@@ -758,7 +760,6 @@ router.get('/stats/summary', authenticate, async (req, res, next) => {
     const stats = await query(`
       SELECT
         COUNT(*) FILTER (WHERE status = 'pending') as pending,
-        COUNT(*) FILTER (WHERE status = 'approved') as approved,
         COUNT(*) FILTER (WHERE status = 'shipped') as shipped,
         COUNT(*) FILTER (WHERE status = 'received') as received,
         COUNT(*) FILTER (WHERE status = 'complete') as complete,
@@ -767,6 +768,132 @@ router.get('/stats/summary', authenticate, async (req, res, next) => {
     `);
 
     res.json(stats.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get tracking info for a specific RMA
+router.get('/:id/tracking', authenticate, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const rma = await query('SELECT tracking_number FROM rmas WHERE id = $1', [id]);
+    if (rma.rows.length === 0) {
+      return res.status(404).json({ error: 'RMA not found' });
+    }
+
+    const trackingNumber = rma.rows[0].tracking_number;
+
+    if (!trackingNumber) {
+      return res.json({
+        tracking_number: null,
+        carrier: null,
+        tracking_url: null,
+        status: 'No tracking number'
+      });
+    }
+
+    const carrier = detectCarrier(trackingNumber);
+    const trackingUrl = getTrackingUrl(trackingNumber);
+
+    // Try to get live status
+    const trackingStatus = await checkTrackingStatus(trackingNumber);
+
+    res.json({
+      tracking_number: trackingNumber,
+      carrier,
+      tracking_url: trackingUrl,
+      status: trackingStatus.status,
+      delivered: trackingStatus.delivered,
+      delivery_date: trackingStatus.deliveryDate,
+      events: trackingStatus.events || []
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get 17TRACK API quota (admin only)
+router.get('/tracking/quota', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const quota = await getQuota17Track();
+
+    if (!quota) {
+      return res.json({
+        configured: false,
+        message: 'Tracking API not configured. Add TRACK17_API_KEY to enable.'
+      });
+    }
+
+    res.json({
+      configured: true,
+      quota_total: quota.quota_total,
+      quota_used: quota.quota_used,
+      quota_remain: quota.quota_remain,
+      daily_limit: quota.daily_limit,
+      daily_used: quota.daily_used
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Check and update tracking status for a specific RMA
+router.post('/:id/check-tracking', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const rma = await query('SELECT * FROM rmas WHERE id = $1', [id]);
+    if (rma.rows.length === 0) {
+      return res.status(404).json({ error: 'RMA not found' });
+    }
+
+    const rmaData = rma.rows[0];
+
+    if (!rmaData.tracking_number) {
+      return res.status(400).json({ error: 'No tracking number for this RMA' });
+    }
+
+    if (rmaData.status !== 'shipped') {
+      return res.status(400).json({ error: 'RMA is not in shipped status' });
+    }
+
+    const trackingStatus = await checkTrackingStatus(rmaData.tracking_number);
+
+    if (trackingStatus.delivered) {
+      // Auto-update to received status
+      await query(`
+        UPDATE rmas SET
+          status = 'received',
+          received_at = $1,
+          updated_at = NOW()
+        WHERE id = $2
+      `, [trackingStatus.deliveryDate || new Date(), id]);
+
+      // Log the change
+      await query(`
+        INSERT INTO rma_history (rma_id, user_id, action, details)
+        VALUES ($1, $2, 'status_changed', $3)
+      `, [id, req.user.id, JSON.stringify({
+        from: 'shipped',
+        to: 'received',
+        tracking_status: 'delivered',
+        delivery_date: trackingStatus.deliveryDate
+      })]);
+
+      res.json({
+        updated: true,
+        new_status: 'received',
+        delivery_date: trackingStatus.deliveryDate,
+        tracking_status: trackingStatus
+      });
+    } else {
+      res.json({
+        updated: false,
+        tracking_status: trackingStatus
+      });
+    }
   } catch (error) {
     next(error);
   }

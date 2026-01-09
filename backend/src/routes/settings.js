@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const Anthropic = require('@anthropic-ai/sdk');
+const axios = require('axios');
 const { authenticate, isAdmin } = require('../middleware/auth');
 const { query } = require('../config/database');
 
@@ -233,6 +234,142 @@ router.put('/notifications', authenticate, isAdmin, async (req, res, next) => {
     res.json({ success: true, message: 'Notification settings updated' });
   } catch (error) {
     next(error);
+  }
+});
+
+// Get tracking API settings (admin only)
+router.get('/tracking', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const envVars = readEnvFile();
+    const apiKey = envVars.TRACK17_API_KEY || process.env.TRACK17_API_KEY;
+
+    // Try to get quota if API key exists
+    let quota = null;
+    if (apiKey) {
+      try {
+        const response = await axios.post('https://api.17track.net/track/v2.2/getquota', {}, {
+          headers: {
+            '17token': apiKey,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000
+        });
+        if (response.data.code === 0) {
+          quota = response.data.data;
+        }
+      } catch (e) {
+        console.log('Could not fetch quota:', e.message);
+      }
+    }
+
+    res.json({
+      has_api_key: !!apiKey,
+      api_key_masked: maskApiKey(apiKey),
+      provider: '17TRACK',
+      quota: quota ? {
+        total: quota.quota_total,
+        used: quota.quota_used,
+        remaining: quota.quota_remain
+      } : null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update tracking API key (admin only)
+router.put('/tracking', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const { api_key } = req.body;
+
+    if (!api_key) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+
+    // Read existing env vars
+    const envVars = readEnvFile();
+
+    // Update the API key
+    envVars.TRACK17_API_KEY = api_key;
+
+    // Write back
+    if (!writeEnvFile(envVars)) {
+      return res.status(500).json({ error: 'Failed to save API key' });
+    }
+
+    // Update process.env for immediate use
+    process.env.TRACK17_API_KEY = api_key;
+
+    res.json({
+      success: true,
+      message: 'Tracking API key updated successfully',
+      api_key_masked: maskApiKey(api_key)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Test tracking API key (admin only)
+router.post('/tracking/test', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const { api_key } = req.body;
+
+    // Use provided key or existing one
+    const keyToTest = api_key || process.env.TRACK17_API_KEY;
+
+    if (!keyToTest) {
+      return res.status(400).json({
+        success: false,
+        error: 'No API key configured'
+      });
+    }
+
+    // Test the API key by getting quota
+    const startTime = Date.now();
+    const response = await axios.post('https://api.17track.net/track/v2.2/getquota', {}, {
+      headers: {
+        '17token': keyToTest,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
+    });
+    const responseTime = Date.now() - startTime;
+
+    if (response.data.code === 0) {
+      const quota = response.data.data;
+      res.json({
+        success: true,
+        message: 'API key is valid and working',
+        response_time_ms: responseTime,
+        quota: {
+          total: quota.quota_total,
+          used: quota.quota_used,
+          remaining: quota.quota_remain
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: response.data.message || 'API key validation failed'
+      });
+    }
+  } catch (error) {
+    console.error('Tracking API key test error:', error);
+
+    let errorMessage = 'Failed to connect to 17TRACK API';
+    if (error.response?.status === 401) {
+      errorMessage = 'Invalid API key - authentication failed';
+    } else if (error.response?.status === 429) {
+      errorMessage = 'Rate limit exceeded - too many requests';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
+    res.status(400).json({
+      success: false,
+      error: errorMessage
+    });
   }
 });
 

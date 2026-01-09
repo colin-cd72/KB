@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { query } = require('../config/database');
 const { sendTemplateEmail, shouldNotifyUser } = require('./emailService');
+const { checkAllShippedRMAs } = require('./trackingService');
 
 // Send reminders for assigned issues
 async function sendIssueReminders() {
@@ -100,6 +101,49 @@ async function sendRMAReminders() {
   }
 }
 
+// Check tracking status and auto-update delivered RMAs
+async function checkTrackingUpdates() {
+  try {
+    console.log('Checking package tracking for shipped RMAs...');
+    const updates = await checkAllShippedRMAs(query);
+
+    if (updates.length > 0) {
+      console.log(`Auto-updated ${updates.length} RMAs to received status`);
+
+      // Send notifications for each delivered RMA
+      for (const update of updates) {
+        // Get RMA details for notification
+        const rmaResult = await query(`
+          SELECT r.*, u.email, u.name as user_name
+          FROM rmas r
+          JOIN users u ON r.created_by = u.id
+          WHERE r.rma_number = $1
+        `, [update.rma_number]);
+
+        if (rmaResult.rows.length > 0) {
+          const rma = rmaResult.rows[0];
+          const shouldNotify = await shouldNotifyUser(rma.created_by, 'rma_status');
+
+          if (shouldNotify) {
+            await sendTemplateEmail('statusUpdate', rma.email, {
+              userName: rma.user_name,
+              rmaNumber: rma.rma_number,
+              itemName: rma.item_name,
+              newStatus: 'received',
+              deliveryDate: update.delivery_date ? new Date(update.delivery_date).toLocaleString() : 'recently',
+              url: `${process.env.FRONTEND_URL || 'https://kb.4tmrw.net'}/rmas/${rma.id}`
+            });
+          }
+        }
+      }
+    } else {
+      console.log('No tracking updates found');
+    }
+  } catch (error) {
+    console.error('Error checking tracking updates:', error);
+  }
+}
+
 // Send weekly digest
 async function sendWeeklyDigest() {
   try {
@@ -118,7 +162,7 @@ async function sendWeeklyDigest() {
         SELECT
           (SELECT COUNT(*) FROM issues WHERE created_at > NOW() - INTERVAL '7 days') as new_issues,
           (SELECT COUNT(*) FROM issues WHERE status IN ('resolved', 'closed') AND updated_at > NOW() - INTERVAL '7 days') as resolved_issues,
-          (SELECT COUNT(*) FROM rmas WHERE status IN ('pending', 'approved', 'shipped')) as pending_rmas
+          (SELECT COUNT(*) FROM rmas WHERE status IN ('pending', 'shipped')) as pending_rmas
       `);
 
       const summary = statsResult.rows[0];
@@ -157,7 +201,13 @@ function initializeReminders() {
       sendWeeklyDigest();
     });
 
-    console.log('Email reminder cron jobs initialized');
+    // Check package tracking every 4 hours
+    cron.schedule('0 */4 * * *', () => {
+      console.log('Running tracking status check...');
+      checkTrackingUpdates();
+    });
+
+    console.log('Email reminder and tracking cron jobs initialized');
   }).catch(error => {
     console.error('Failed to initialize reminders:', error);
   });
@@ -167,5 +217,6 @@ module.exports = {
   initializeReminders,
   sendIssueReminders,
   sendRMAReminders,
-  sendWeeklyDigest
+  sendWeeklyDigest,
+  checkTrackingUpdates
 };
