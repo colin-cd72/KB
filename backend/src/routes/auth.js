@@ -90,7 +90,7 @@ router.post('/login',
       // Get user
       const result = await query(
         `SELECT id, email, password_hash, name, role, is_active,
-                failed_login_attempts, locked_until
+                failed_login_attempts, locked_until, must_change_password
          FROM users WHERE email = $1`,
         [email]
       );
@@ -151,7 +151,8 @@ router.post('/login',
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role
+          role: user.role,
+          must_change_password: user.must_change_password || false
         },
         token
       });
@@ -165,7 +166,7 @@ router.post('/login',
 router.get('/me', authenticate, async (req, res, next) => {
   try {
     const result = await query(
-      `SELECT id, email, name, role, avatar_url, created_at, last_login
+      `SELECT id, email, name, role, avatar_url, created_at, last_login, must_change_password
        FROM users WHERE id = $1`,
       [req.user.id]
     );
@@ -209,9 +210,9 @@ router.post('/change-password',
       // Hash new password
       const newPasswordHash = await bcrypt.hash(newPassword, 12);
 
-      // Update password
+      // Update password and clear must_change_password flag
       await query(
-        'UPDATE users SET password_hash = $1 WHERE id = $2',
+        'UPDATE users SET password_hash = $1, must_change_password = FALSE WHERE id = $2',
         [newPasswordHash, req.user.id]
       );
 

@@ -1,10 +1,23 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const { query } = require('../config/database');
 const { authenticate, isAdmin } = require('../middleware/auth');
+const { sendEmail, templates } = require('../services/emailService');
 
 const router = express.Router();
+
+// Generate a random temporary password
+function generateTempPassword(length = 12) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%';
+  let password = '';
+  const randomBytes = crypto.randomBytes(length);
+  for (let i = 0; i < length; i++) {
+    password += chars[randomBytes[i] % chars.length];
+  }
+  return password;
+}
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -86,30 +99,57 @@ router.post('/',
   isAdmin,
   [
     body('email').isEmail().normalizeEmail(),
-    body('password').isLength({ min: 8 }),
+    body('password').optional().isLength({ min: 8 }),
     body('name').trim().notEmpty(),
-    body('role').isIn(['admin', 'technician', 'viewer'])
+    body('role').isIn(['admin', 'technician', 'viewer']),
+    body('send_welcome_email').optional().isBoolean()
   ],
   validate,
   async (req, res, next) => {
     try {
-      const { email, password, name, role } = req.body;
+      const { email, name, role, send_welcome_email = true } = req.body;
+      let { password } = req.body;
 
       const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
       if (existing.rows.length > 0) {
         return res.status(409).json({ error: 'Email already registered' });
       }
 
+      // Generate temporary password if not provided
+      const isTemporaryPassword = !password;
+      if (!password) {
+        password = generateTempPassword();
+      }
+
       const passwordHash = await bcrypt.hash(password, 12);
 
       const result = await query(
-        `INSERT INTO users (email, password_hash, name, role)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, email, name, role, created_at`,
-        [email, passwordHash, name, role]
+        `INSERT INTO users (email, password_hash, name, role, must_change_password)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, email, name, role, created_at, must_change_password`,
+        [email, passwordHash, name, role, isTemporaryPassword]
       );
 
-      res.status(201).json({ user: result.rows[0] });
+      const user = result.rows[0];
+
+      // Send welcome email if requested
+      let emailSent = false;
+      if (send_welcome_email) {
+        const loginUrl = process.env.FRONTEND_URL || 'https://kb.4tmrw.net';
+        const template = templates.welcomeNewUser(name, email, password, loginUrl);
+        const emailResult = await sendEmail({
+          to: email,
+          subject: template.subject,
+          html: template.html
+        });
+        emailSent = emailResult.success;
+      }
+
+      res.status(201).json({
+        user,
+        welcome_email_sent: emailSent,
+        temporary_password: isTemporaryPassword ? password : undefined
+      });
     } catch (error) {
       next(error);
     }
@@ -188,15 +228,26 @@ router.put('/:id',
 router.post('/:id/reset-password',
   authenticate,
   isAdmin,
-  [body('password').isLength({ min: 8 })],
+  [
+    body('password').optional().isLength({ min: 8 }),
+    body('send_email').optional().isBoolean()
+  ],
   validate,
   async (req, res, next) => {
     try {
-      const passwordHash = await bcrypt.hash(req.body.password, 12);
+      const { send_email = true } = req.body;
+      let { password } = req.body;
+
+      // Generate temporary password if not provided
+      if (!password) {
+        password = generateTempPassword();
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
 
       const result = await query(
-        `UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL
-         WHERE id = $2 RETURNING id`,
+        `UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL, must_change_password = TRUE
+         WHERE id = $2 RETURNING id, email, name`,
         [passwordHash, req.params.id]
       );
 
@@ -204,7 +255,27 @@ router.post('/:id/reset-password',
         return res.status(404).json({ error: 'User not found' });
       }
 
-      res.json({ message: 'Password reset successfully' });
+      const user = result.rows[0];
+
+      // Send email notification if requested
+      let emailSent = false;
+      if (send_email) {
+        const loginUrl = process.env.FRONTEND_URL || 'https://kb.4tmrw.net';
+        const template = templates.welcomeNewUser(user.name, user.email, password, loginUrl);
+        const emailResult = await sendEmail({
+          to: user.email,
+          subject: 'Password Reset - Knowledge Base',
+          html: template.html.replace('Welcome to Knowledge Base!', 'Your Password Has Been Reset')
+            .replace('An account has been created for you.', 'Your password has been reset by an administrator.')
+        });
+        emailSent = emailResult.success;
+      }
+
+      res.json({
+        message: 'Password reset successfully',
+        email_sent: emailSent,
+        temporary_password: password
+      });
     } catch (error) {
       next(error);
     }

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '../store/authStore';
-import { LogIn, Eye, EyeOff, Sparkles, ArrowRight, Mail, Lock } from 'lucide-react';
+import { LogIn, Eye, EyeOff, Sparkles, ArrowRight, Mail, Lock, X, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const schema = z.object({
@@ -12,30 +12,75 @@ const schema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
 function Login() {
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuthStore();
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [tempCredentials, setTempCredentials] = useState(null);
+  const { login, changePassword } = useAuthStore();
   const navigate = useNavigate();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
+    getValues,
   } = useForm({
     resolver: zodResolver(schema),
+  });
+
+  const {
+    register: registerPw,
+    handleSubmit: handleSubmitPw,
+    formState: { errors: errorsPw },
+    reset: resetPw,
+  } = useForm({
+    resolver: zodResolver(passwordChangeSchema),
   });
 
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      await login(data.email, data.password);
-      toast.success('Welcome back!');
-      navigate('/dashboard');
+      const user = await login(data.email, data.password);
+      if (user.must_change_password) {
+        setTempCredentials({ email: data.email, password: data.password });
+        setShowPasswordChange(true);
+        toast('Please change your password to continue', { icon: '🔐' });
+      } else {
+        toast.success('Welcome back!');
+        navigate('/dashboard');
+      }
     } catch (error) {
       // Error is handled by API interceptor
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onPasswordChange = async (data) => {
+    setChangingPassword(true);
+    try {
+      await changePassword(data.currentPassword, data.newPassword);
+      toast.success('Password changed successfully!');
+      setShowPasswordChange(false);
+      setTempCredentials(null);
+      resetPw();
+      navigate('/dashboard');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to change password');
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -192,6 +237,101 @@ function Login() {
           </div>
         </div>
       </div>
+
+      {/* Password Change Modal */}
+      {showPasswordChange && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
+            <div className="p-6 border-b border-dark-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center">
+                  <KeyRound className="w-6 h-6 text-primary-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-dark-900">Change Your Password</h3>
+                  <p className="text-sm text-dark-500">You must change your password to continue</p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitPw(onPasswordChange)} className="p-6 space-y-4">
+              <div>
+                <label className="label">Current Password</label>
+                <p className="text-xs text-dark-400 mb-2">Use the temporary password you received</p>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    {...registerPw('currentPassword')}
+                    defaultValue={tempCredentials?.password || ''}
+                    className={`input pl-12 ${errorsPw.currentPassword ? 'input-error' : ''}`}
+                    placeholder="Enter current password"
+                  />
+                </div>
+                {errorsPw.currentPassword && (
+                  <p className="mt-1 text-sm text-danger-600">{errorsPw.currentPassword.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="label">New Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    {...registerPw('newPassword')}
+                    className={`input pl-12 pr-12 ${errorsPw.newPassword ? 'input-error' : ''}`}
+                    placeholder="Enter new password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-400 hover:text-dark-600"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                  >
+                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {errorsPw.newPassword && (
+                  <p className="mt-1 text-sm text-danger-600">{errorsPw.newPassword.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="label">Confirm New Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    {...registerPw('confirmPassword')}
+                    className={`input pl-12 ${errorsPw.confirmPassword ? 'input-error' : ''}`}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+                {errorsPw.confirmPassword && (
+                  <p className="mt-1 text-sm text-danger-600">{errorsPw.confirmPassword.message}</p>
+                )}
+              </div>
+
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="w-full btn btn-primary flex items-center justify-center gap-2"
+                >
+                  {changingPassword ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      Change Password
+                      <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

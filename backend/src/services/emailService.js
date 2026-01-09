@@ -220,6 +220,28 @@ const templates = {
         <p style="color: #64748b; font-size: 12px;">Knowledge Base System</p>
       </div>
     `
+  }),
+
+  welcomeNewUser: (userName, email, password, loginUrl) => ({
+    subject: 'Welcome to Knowledge Base - Your Account Details',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0284c7;">Welcome to Knowledge Base!</h2>
+        <p>Hello ${userName},</p>
+        <p>An account has been created for you. Here are your login details:</p>
+        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0;"><strong>Email:</strong> ${email}</p>
+          <p style="margin: 0 0 10px 0;"><strong>Temporary Password:</strong> <code style="background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">${password}</code></p>
+        </div>
+        <p style="color: #dc2626; font-weight: 500;">You will be required to change your password on first login.</p>
+        <p style="text-align: center; margin: 30px 0;">
+          <a href="${loginUrl}" style="background: #0284c7; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">Login Now</a>
+        </p>
+        <p>Or go to: <a href="${loginUrl}" style="color: #0284c7;">${loginUrl}</a></p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+        <p style="color: #64748b; font-size: 12px;">Knowledge Base System</p>
+      </div>
+    `
   })
 };
 
