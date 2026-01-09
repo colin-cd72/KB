@@ -400,12 +400,12 @@ function Settings() {
 
       {/* Tabs */}
       <div className="card">
-        <div className="border-b border-dark-100">
-          <nav className="flex">
+        <div className="border-b border-dark-100 overflow-x-auto">
+          <nav className="flex flex-wrap min-w-max">
             <button
               onClick={() => setActiveTab('profile')}
               className={clsx(
-                'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap',
                 activeTab === 'profile'
                   ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-dark-500 hover:text-dark-700'
@@ -417,7 +417,7 @@ function Settings() {
             <button
               onClick={() => setActiveTab('security')}
               className={clsx(
-                'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap',
                 activeTab === 'security'
                   ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-dark-500 hover:text-dark-700'
@@ -430,7 +430,7 @@ function Settings() {
               <button
                 onClick={() => setActiveTab('categories')}
                 className={clsx(
-                  'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                  'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap',
                   activeTab === 'categories'
                     ? 'border-primary-600 text-primary-600'
                     : 'border-transparent text-dark-500 hover:text-dark-700'
@@ -443,7 +443,7 @@ function Settings() {
             <button
               onClick={() => setActiveTab('notifications')}
               className={clsx(
-                'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap',
                 activeTab === 'notifications'
                   ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-dark-500 hover:text-dark-700'
@@ -456,42 +456,42 @@ function Settings() {
               <button
                 onClick={() => setActiveTab('email')}
                 className={clsx(
-                  'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                  'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap',
                   activeTab === 'email'
                     ? 'border-primary-600 text-primary-600'
                     : 'border-transparent text-dark-500 hover:text-dark-700'
                 )}
               >
                 <Mail className="w-4 h-4" />
-                Email Server
+                Email
               </button>
             )}
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('admin-notifications')}
                 className={clsx(
-                  'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                  'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap',
                   activeTab === 'admin-notifications'
                     ? 'border-primary-600 text-primary-600'
                     : 'border-transparent text-dark-500 hover:text-dark-700'
                 )}
               >
                 <Sliders className="w-4 h-4" />
-                Notification Rules
+                Rules
               </button>
             )}
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('ai')}
                 className={clsx(
-                  'px-6 py-4 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2',
+                  'px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 whitespace-nowrap',
                   activeTab === 'ai'
                     ? 'border-primary-600 text-primary-600'
                     : 'border-transparent text-dark-500 hover:text-dark-700'
                 )}
               >
                 <Bot className="w-4 h-4" />
-                AI Configuration
+                AI
               </button>
             )}
           </nav>
