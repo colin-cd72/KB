@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { query } = require('../db');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { query } = require('../config/database');
+const { authenticate, isAdmin } = require('../middleware/auth');
 
 // All activity log routes require admin access
-router.use(authenticate, requireRole(['admin']));
+router.use(authenticate, isAdmin);
 
 // Get activity logs with filters
 router.get('/', async (req, res) => {
