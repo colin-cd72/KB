@@ -7,6 +7,7 @@
 require('dotenv').config();
 const { query, pool } = require('../src/config/database');
 const { sendEmail, templates } = require('../src/services/emailService');
+const { logActivity } = require('../src/routes/activityLogs');
 
 async function sendCatchupEmails() {
   console.log('Starting todo catch-up email process...\n');
@@ -64,6 +65,22 @@ async function sendCatchupEmails() {
 
       if (emailResult.success) {
         console.log(`  ✓ Email sent successfully\n`);
+
+        // Log to activity log
+        await logActivity(
+          null, // System action
+          'email_sent',
+          'email',
+          null,
+          `Todo Catch-up to ${data.name}`,
+          {
+            recipient: data.email,
+            recipient_name: data.name,
+            todo_count: data.todos.length,
+            todo_titles: data.todos.map(t => t.title),
+            type: 'todo_catchup'
+          }
+        );
       } else {
         console.log(`  ✗ Failed: ${emailResult.error}\n`);
       }

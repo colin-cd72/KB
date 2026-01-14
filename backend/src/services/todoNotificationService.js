@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const { sendEmail, templates } = require('./emailService');
+const { logActivity } = require('../routes/activityLogs');
 
 // In-memory queue for batching todo assignments
 // Structure: { assigneeId: { todos: [], assignedById: string, timestamp: Date } }
@@ -110,8 +111,38 @@ async function processAssignmentQueue(assigneeId) {
 
     if (result.success) {
       console.log(`Todo assignment notification sent to ${assignee.email} for ${queueEntry.todos.length} todo(s)`);
+
+      // Log to activity log
+      await logActivity(
+        queueEntry.assignedById,
+        'email_sent',
+        'email',
+        null,
+        `Todo Assignment to ${assignee.name}`,
+        {
+          recipient: assignee.email,
+          recipient_name: assignee.name,
+          todo_count: queueEntry.todos.length,
+          todo_titles: queueEntry.todos.map(t => t.title),
+          type: 'todo_assigned'
+        }
+      );
     } else {
       console.error(`Failed to send todo assignment notification: ${result.error}`);
+
+      // Log failed attempt
+      await logActivity(
+        queueEntry.assignedById,
+        'email_failed',
+        'email',
+        null,
+        `Todo Assignment to ${assignee.name}`,
+        {
+          recipient: assignee.email,
+          error: result.error,
+          type: 'todo_assigned'
+        }
+      );
     }
   } catch (error) {
     console.error('Error processing assignment queue:', error);
