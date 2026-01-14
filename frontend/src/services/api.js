@@ -148,6 +148,7 @@ export const dashboardApi = {
   getEquipmentFailures: () => api.get('/dashboard/equipment-failures'),
   getCommonIssues: () => api.get('/dashboard/common-issues'),
   getTrends: () => api.get('/dashboard/trends'),
+  getShippingUpdates: () => api.get('/dashboard/shipping-updates'),
 };
 
 export const todosApi = {

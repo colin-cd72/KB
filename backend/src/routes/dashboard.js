@@ -328,6 +328,41 @@ router.get('/common-issues', authenticate, isTechnician, async (req, res, next) 
   }
 });
 
+// Shipping Updates - recent RMA status changes
+router.get('/shipping-updates', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT r.id, r.rma_number, r.item_name, r.status, r.tracking_number,
+             r.shipped_at, r.received_at, r.completed_at,
+             u.name as created_by_name,
+             CASE
+               WHEN r.status = 'shipped' THEN r.shipped_at
+               WHEN r.status = 'received' THEN r.received_at
+               WHEN r.status = 'complete' THEN r.completed_at
+               ELSE r.updated_at
+             END as status_date
+      FROM rmas r
+      LEFT JOIN users u ON r.created_by = u.id
+      WHERE r.status IN ('shipped', 'received', 'complete')
+        AND (r.shipped_at > NOW() - INTERVAL '30 days'
+             OR r.received_at > NOW() - INTERVAL '30 days'
+             OR r.completed_at > NOW() - INTERVAL '30 days')
+      ORDER BY
+        CASE
+          WHEN r.status = 'shipped' THEN r.shipped_at
+          WHEN r.status = 'received' THEN r.received_at
+          WHEN r.status = 'complete' THEN r.completed_at
+          ELSE r.updated_at
+        END DESC
+      LIMIT 10
+    `);
+
+    res.json({ updates: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Weekly Trends - issues created vs resolved over the last 8 weeks
 router.get('/trends', authenticate, isTechnician, async (req, res, next) => {
   try {

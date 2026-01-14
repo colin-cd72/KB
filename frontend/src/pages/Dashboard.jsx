@@ -15,7 +15,9 @@ import {
   Target,
   Activity,
   Package,
-  Folder
+  Folder,
+  Truck,
+  PackageCheck
 } from 'lucide-react';
 import clsx from 'clsx';
 import {
@@ -370,6 +372,101 @@ function TrendsWidget({ trends }) {
   );
 }
 
+// Shipping Updates Widget
+function ShippingUpdatesWidget({ updates }) {
+  if (!updates || updates.length === 0) {
+    return (
+      <div className="card">
+        <div className="px-6 py-5 border-b border-dark-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center">
+              <Truck className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-dark-900">Shipping Updates</h2>
+              <p className="text-sm text-dark-500">Recent RMA activity</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 text-center text-dark-500">
+          <Truck className="w-12 h-12 mx-auto mb-2 text-dark-300" />
+          <p>No recent shipping updates</p>
+        </div>
+      </div>
+    );
+  }
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'shipped': return <Truck className="w-4 h-4 text-accent-600" />;
+      case 'received': return <PackageCheck className="w-4 h-4 text-success-600" />;
+      case 'complete': return <CheckCircle className="w-4 h-4 text-success-600" />;
+      default: return <Package className="w-4 h-4 text-dark-400" />;
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'shipped': return 'bg-accent-50 text-accent-700 border-accent-200';
+      case 'received': return 'bg-success-50 text-success-700 border-success-200';
+      case 'complete': return 'bg-success-50 text-success-700 border-success-200';
+      default: return 'bg-dark-50 text-dark-600 border-dark-200';
+    }
+  };
+
+  return (
+    <div className="card">
+      <div className="px-6 py-5 border-b border-dark-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center">
+            <Truck className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-dark-900">Shipping Updates</h2>
+            <p className="text-sm text-dark-500">Recent RMA activity</p>
+          </div>
+        </div>
+        <Link to="/rmas" className="text-sm font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1">
+          View all
+          <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+      <div className="divide-y divide-dark-100 max-h-80 overflow-y-auto">
+        {updates.map((update) => (
+          <Link
+            key={update.id}
+            to={`/rmas/${update.id}`}
+            className="flex items-center gap-3 px-6 py-3 hover:bg-primary-50/50 transition-colors group"
+          >
+            <div className="flex-shrink-0">
+              {getStatusIcon(update.status)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-dark-900 truncate group-hover:text-primary-600 transition-colors text-sm">
+                {update.item_name}
+              </p>
+              <p className="text-xs text-dark-500">
+                <span className="font-mono">{update.rma_number}</span>
+                {update.tracking_number && (
+                  <span className="ml-2">• {update.tracking_number.substring(0, 12)}...</span>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className={clsx('badge text-xs', getStatusColor(update.status))}>
+                {update.status}
+              </span>
+              <span className="text-xs text-dark-400">
+                {new Date(update.status_date).toLocaleDateString()}
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard() {
   const { user } = useAuthStore();
 
@@ -422,6 +519,15 @@ function Dashboard() {
     queryKey: ['dashboard-trends'],
     queryFn: async () => {
       const response = await dashboardApi.getTrends();
+      return response.data;
+    },
+    enabled: user?.role !== 'viewer',
+  });
+
+  const { data: shippingUpdates } = useQuery({
+    queryKey: ['shipping-updates'],
+    queryFn: async () => {
+      const response = await dashboardApi.getShippingUpdates();
       return response.data;
     },
     enabled: user?.role !== 'viewer',
@@ -587,6 +693,11 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Shipping Updates (technician+ only) */}
+      {user?.role !== 'viewer' && shippingUpdates?.updates?.length > 0 && (
+        <ShippingUpdatesWidget updates={shippingUpdates?.updates} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Issues */}
