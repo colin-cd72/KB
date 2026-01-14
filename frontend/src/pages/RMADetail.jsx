@@ -774,6 +774,17 @@ function RMADetail() {
             <div>RMA Details</div>
           </div>
 
+          <div className="rma-section" style={{ backgroundColor: '#f5f5f5', padding: '8px', marginBottom: '12px' }}>
+            <div className="rma-section-title">Return Address</div>
+            <div style={{ lineHeight: '1.4', fontSize: '11px' }}>
+              <div><strong>SoFi Center</strong></div>
+              <div>Colin DeFord</div>
+              <div>2961 RCA BLVD</div>
+              <div>Palm Beach Gardens, FL 33410</div>
+              <div>(435) 200-4744</div>
+            </div>
+          </div>
+
           <div className="rma-section">
             <div className="rma-section-title">Item Information</div>
             <div className="rma-row">
