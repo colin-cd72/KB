@@ -680,13 +680,8 @@ function Todos() {
 
   const quickAddTodo = useMutation({
     mutationFn: async ({ title, assigned_to }) => {
-      // Use create endpoint if assignee is selected, otherwise quick add
-      let response;
-      if (assigned_to) {
-        response = await todosApi.create({ title, priority: 'medium', assigned_to });
-      } else {
-        response = await todosApi.quickAdd(title);
-      }
+      // Quick add supports optional assignee
+      const response = await todosApi.quickAdd(title, assigned_to);
       // Upload images if any
       if (quickAddImages.length > 0) {
         await todosApi.uploadImages(response.data.todo.id, quickAddImages);

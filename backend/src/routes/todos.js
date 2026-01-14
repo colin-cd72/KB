@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const { query, transaction } = require('../config/database');
 const { authenticate, isTechnician, isViewer } = require('../middleware/auth');
+const { queueTodoAssignment } = require('../services/todoNotificationService');
 
 const router = express.Router();
 
@@ -205,7 +206,14 @@ router.post('/',
         [title, description, priority || 'medium', due_date, req.user.id, assigned_to, category_id, equipment_id]
       );
 
-      res.status(201).json({ todo: result.rows[0] });
+      const todo = result.rows[0];
+
+      // Queue notification if assigned to someone
+      if (assigned_to) {
+        queueTodoAssignment(todo, assigned_to, req.user.id);
+      }
+
+      res.status(201).json({ todo });
     } catch (error) {
       next(error);
     }
@@ -230,6 +238,11 @@ router.put('/:id',
   async (req, res, next) => {
     try {
       const { title, description, priority, status, due_date, assigned_to, category_id, equipment_id } = req.body;
+
+      // Get current todo to check if assignee is changing
+      const currentTodo = await query('SELECT assigned_to FROM todos WHERE id = $1', [req.params.id]);
+      const previousAssignee = currentTodo.rows[0]?.assigned_to;
+
       const updates = [];
       const values = [];
       let paramCount = 1;
@@ -291,7 +304,14 @@ router.put('/:id',
         return res.status(404).json({ error: 'Todo not found' });
       }
 
-      res.json({ todo: result.rows[0] });
+      const todo = result.rows[0];
+
+      // Queue notification if assignee changed to a new person
+      if (assigned_to !== undefined && assigned_to !== previousAssignee && assigned_to) {
+        queueTodoAssignment(todo, assigned_to, req.user.id);
+      }
+
+      res.json({ todo });
     } catch (error) {
       next(error);
     }
@@ -529,20 +549,30 @@ router.delete('/images/:imageId', authenticate, isTechnician, async (req, res, n
 router.post('/quick',
   authenticate,
   isTechnician,
-  [body('title').trim().notEmpty().isLength({ max: 500 })],
+  [
+    body('title').trim().notEmpty().isLength({ max: 500 }),
+    body('assigned_to').optional().isUUID()
+  ],
   validate,
   async (req, res, next) => {
     try {
-      const { title } = req.body;
+      const { title, assigned_to } = req.body;
 
       const result = await query(
-        `INSERT INTO todos (title, priority, created_by)
-         VALUES ($1, 'medium', $2)
+        `INSERT INTO todos (title, priority, created_by, assigned_to)
+         VALUES ($1, 'medium', $2, $3)
          RETURNING *`,
-        [title, req.user.id]
+        [title, req.user.id, assigned_to || null]
       );
 
-      res.status(201).json({ todo: result.rows[0] });
+      const todo = result.rows[0];
+
+      // Queue notification if assigned to someone
+      if (assigned_to) {
+        queueTodoAssignment(todo, assigned_to, req.user.id);
+      }
+
+      res.status(201).json({ todo });
     } catch (error) {
       next(error);
     }

@@ -242,6 +242,34 @@ const templates = {
         <p style="color: #64748b; font-size: 12px;">Knowledge Base System</p>
       </div>
     `
+  }),
+
+  todoAssigned: (userName, todos, assignedByName) => ({
+    subject: `${todos.length === 1 ? 'New Todo Assigned' : `${todos.length} New Todos Assigned`} to You`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #0284c7;">${todos.length === 1 ? 'New Todo Assigned' : 'New Todos Assigned'}</h2>
+        <p>Hello ${userName},</p>
+        <p>${assignedByName} has assigned ${todos.length === 1 ? 'a new todo' : `${todos.length} new todos`} to you:</p>
+        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          ${todos.map(todo => `
+            <div style="border-bottom: 1px solid #e2e8f0; padding: 15px 0; ${todos.indexOf(todo) === todos.length - 1 ? 'border-bottom: none;' : ''}">
+              <h3 style="margin: 0 0 8px 0; color: #0f172a;">${todo.title}</h3>
+              <div style="display: flex; gap: 15px; font-size: 13px; color: #64748b;">
+                <span style="padding: 2px 8px; border-radius: 4px; background: ${todo.priority === 'high' ? '#fee2e2; color: #dc2626' : todo.priority === 'medium' ? '#fef3c7; color: #d97706' : '#dcfce7; color: #16a34a'};">${todo.priority}</span>
+                ${todo.due_date ? `<span>Due: ${new Date(todo.due_date).toLocaleDateString()}</span>` : ''}
+              </div>
+              ${todo.description ? `<p style="margin: 10px 0 0 0; color: #475569; font-size: 14px;">${todo.description.substring(0, 150)}${todo.description.length > 150 ? '...' : ''}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+        <p style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL || 'https://kb.4tmrw.net'}/todos" style="background: #0284c7; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">View Todos</a>
+        </p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
+        <p style="color: #64748b; font-size: 12px;">Knowledge Base System</p>
+      </div>
+    `
   })
 };
 
