@@ -64,6 +64,17 @@ async function processAssignmentQueue(assigneeId) {
   }
 
   try {
+    // Check if todo email notifications are enabled
+    const settingsResult = await query('SELECT email_on_todo_assigned FROM notification_settings LIMIT 1');
+    const emailEnabled = settingsResult.rows.length === 0 || settingsResult.rows[0].email_on_todo_assigned !== false;
+
+    if (!emailEnabled) {
+      console.log('Todo assignment emails are disabled in settings, skipping notification');
+      assignmentQueue.delete(assigneeId);
+      pendingTimers.delete(assigneeId);
+      return;
+    }
+
     // Get assignee details
     const assigneeResult = await query(
       'SELECT id, name, email FROM users WHERE id = $1',

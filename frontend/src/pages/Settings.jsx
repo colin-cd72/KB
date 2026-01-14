@@ -111,6 +111,7 @@ function Settings() {
     issue_reminder_enabled: true,
     weekly_digest_enabled: true,
     weekly_digest_day: 1,
+    email_on_todo_assigned: true,
     email_on_issue_assigned: true,
     email_on_issue_updated: true,
     email_on_rma_status_change: true,
@@ -1486,6 +1487,19 @@ function Settings() {
                       <Send className="w-4 h-4" />
                       Email Triggers
                     </h3>
+
+                    <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
+                      <div>
+                        <p className="font-medium text-dark-900">Todo Assigned</p>
+                        <p className="text-sm text-dark-500">Send email when a todo is assigned to a user (batched every 5 minutes)</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={notifSettings.email_on_todo_assigned !== false}
+                        onChange={(e) => setNotifSettings({ ...notifSettings, email_on_todo_assigned: e.target.checked })}
+                        className="w-5 h-5 rounded border-dark-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </label>
 
                     <label className="flex items-center justify-between p-4 rounded-xl border border-dark-100 hover:border-dark-200 cursor-pointer">
                       <div>
