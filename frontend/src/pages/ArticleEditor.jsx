@@ -30,11 +30,12 @@ function ArticleEditor() {
   const [saving, setSaving] = useState(false);
 
   // Fetch article if editing
-  const { data: article, isLoading } = useQuery({
+  const { data: article, isLoading, isError, error } = useQuery({
     queryKey: ['article-edit', id],
     queryFn: async () => {
       const response = await articlesApi.getOne(id);
-      return response.data;
+      // API returns article directly or { article: ... }
+      return response.data.article || response.data;
     },
     enabled: isEditing,
   });
@@ -200,6 +201,29 @@ function ArticleEditor() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="text-danger-500 text-lg">Failed to load article</div>
+        <p className="text-dark-500">{error?.message || 'Unknown error'}</p>
+        <button onClick={() => navigate(-1)} className="btn btn-secondary">
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  if (isEditing && !article && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="text-danger-500 text-lg">Article not found</div>
+        <button onClick={() => navigate('/articles')} className="btn btn-secondary">
+          Back to Articles
+        </button>
       </div>
     );
   }
