@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -31,6 +31,7 @@ const schema = z.object({
 
 function NewIssue() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -80,6 +81,7 @@ function NewIssue() {
   const createIssue = useMutation({
     mutationFn: (data) => issuesApi.create(data),
     onSuccess: (response) => {
+      queryClient.invalidateQueries(['issues']);
       toast.success('Issue created successfully');
       navigate(`/issues/${response.data.issue.id}`);
     },
