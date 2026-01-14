@@ -206,6 +206,10 @@ export const emailApi = {
   verifyEmail: (token) => api.post(`/email/verify/${token}`),
   requestPasswordReset: (email) => api.post('/email/password-reset/request', { email }),
   resetPassword: (token, password) => api.post(`/email/password-reset/${token}`, { password }),
+  // Template preview
+  getTemplates: () => api.get('/email/templates'),
+  previewTemplate: (template) => api.get(`/email/preview/${template}`),
+  getQueueStatus: () => api.get('/email/queue-status'),
 };
 
 export const articlesApi = {

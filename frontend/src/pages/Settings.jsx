@@ -29,7 +29,8 @@ import {
   Sliders,
   Clock,
   Truck,
-  Package
+  Package,
+  RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -83,6 +84,14 @@ function Settings() {
   const [emailSettingsLoading, setEmailSettingsLoading] = useState(false);
   const [emailTesting, setEmailTesting] = useState(false);
   const [testEmail, setTestEmail] = useState('');
+
+  // Email preview state
+  const [previewTemplate, setPreviewTemplate] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState('');
+  const [previewSubject, setPreviewSubject] = useState('');
+  const [queueStatus, setQueueStatus] = useState(null);
+  const [queueLoading, setQueueLoading] = useState(false);
 
   // Email Preferences state (all users)
   const [emailPrefs, setEmailPrefs] = useState({
@@ -313,6 +322,32 @@ function Settings() {
       toast.error('Failed to save email preferences');
     } finally {
       setEmailPrefsLoading(false);
+    }
+  };
+
+  const handlePreviewTemplate = async () => {
+    if (!previewTemplate) return;
+    try {
+      setPreviewLoading(true);
+      const response = await emailApi.previewTemplate(previewTemplate);
+      setPreviewSubject(response.data.subject);
+      setPreviewHtml(response.data.html);
+    } catch (error) {
+      toast.error('Failed to load template preview');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleCheckQueue = async () => {
+    try {
+      setQueueLoading(true);
+      const response = await emailApi.getQueueStatus();
+      setQueueStatus(response.data.queue);
+    } catch (error) {
+      toast.error('Failed to check queue status');
+    } finally {
+      setQueueLoading(false);
     }
   };
 
@@ -1204,6 +1239,88 @@ function Settings() {
                     </div>
                     {!emailSettings.enabled && (
                       <p className="text-sm text-warning-600">Enable email above to send test emails</p>
+                    )}
+                  </div>
+
+                  {/* Email Template Preview */}
+                  <div className="space-y-4 pt-4 border-t border-dark-100">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Eye className="w-4 h-4" />
+                      Email Template Preview
+                    </h3>
+                    <div className="flex gap-3">
+                      <select
+                        value={previewTemplate}
+                        onChange={(e) => setPreviewTemplate(e.target.value)}
+                        className="input flex-1"
+                      >
+                        <option value="">Select a template...</option>
+                        <option value="todoAssigned">Todo Assigned</option>
+                        <option value="issueAssigned">Issue Assigned</option>
+                        <option value="issueUpdated">Issue Updated</option>
+                        <option value="verification">Email Verification</option>
+                        <option value="passwordReset">Password Reset</option>
+                      </select>
+                      <button
+                        onClick={handlePreviewTemplate}
+                        disabled={!previewTemplate || previewLoading}
+                        className="btn btn-secondary flex items-center gap-2"
+                      >
+                        {previewLoading ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                        Preview
+                      </button>
+                    </div>
+                    {previewHtml && (
+                      <div className="mt-4 border border-dark-200 rounded-xl overflow-hidden">
+                        <div className="bg-dark-50 px-4 py-2 border-b border-dark-200">
+                          <span className="text-sm font-medium text-dark-700">Subject: </span>
+                          <span className="text-sm text-dark-900">{previewSubject}</span>
+                        </div>
+                        <div
+                          className="p-4 bg-white"
+                          dangerouslySetInnerHTML={{ __html: previewHtml }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Notification Queue Status */}
+                  <div className="space-y-4 pt-4 border-t border-dark-100">
+                    <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Todo Notification Queue
+                    </h3>
+                    <button
+                      onClick={handleCheckQueue}
+                      disabled={queueLoading}
+                      className="btn btn-secondary flex items-center gap-2"
+                    >
+                      {queueLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-5 h-5" />
+                      )}
+                      Check Queue Status
+                    </button>
+                    {queueStatus !== null && (
+                      <div className="p-4 rounded-xl bg-dark-50 border border-dark-100">
+                        {Object.keys(queueStatus).length === 0 ? (
+                          <p className="text-sm text-dark-500">No pending notifications in queue</p>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-dark-700">Pending notifications:</p>
+                            {Object.entries(queueStatus).map(([userId, data]) => (
+                              <div key={userId} className="text-sm text-dark-600">
+                                User {userId.slice(0, 8)}...: {data.todoCount} todo(s) queued at {new Date(data.queuedAt).toLocaleTimeString()}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 

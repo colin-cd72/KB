@@ -2,7 +2,8 @@ const express = require('express');
 const crypto = require('crypto');
 const { query } = require('../config/database');
 const { authenticate, isAdmin } = require('../middleware/auth');
-const { sendEmail, sendTemplateEmail, reinitializeTransporter } = require('../services/emailService');
+const { sendEmail, sendTemplateEmail, reinitializeTransporter, templates } = require('../services/emailService');
+const { getQueueStatus } = require('../services/todoNotificationService');
 
 const router = express.Router();
 
@@ -327,6 +328,91 @@ router.post('/password-reset/:token', async (req, res, next) => {
     await query('UPDATE password_reset_tokens SET used = true WHERE token = $1', [token]);
 
     res.json({ success: true, message: 'Password reset successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Preview email template (admin only)
+router.get('/preview/:template', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const { template } = req.params;
+
+    // Sample data for each template type
+    const sampleData = {
+      todoAssigned: () => templates.todoAssigned('John Doe', [
+        { title: 'Review documentation updates', priority: 'high', due_date: new Date(Date.now() + 86400000).toISOString() },
+        { title: 'Fix login bug', priority: 'medium', due_date: null },
+        { title: 'Update user permissions', priority: 'low', due_date: new Date(Date.now() + 172800000).toISOString() }
+      ], 'Admin User'),
+      issueAssigned: () => templates.issueAssigned('John Doe', {
+        title: 'Camera not focusing properly',
+        priority: 'high',
+        id: 'sample-id'
+      }, 'Admin User'),
+      issueUpdated: () => templates.issueUpdated('John Doe', {
+        title: 'Camera not focusing properly',
+        id: 'sample-id'
+      }, 'status', 'open', 'in_progress', 'Admin User'),
+      verification: () => ({
+        subject: 'Verify Your Email - Knowledge Base',
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #0284c7;">Verify Your Email</h2>
+          <p>Hi John Doe,</p>
+          <p>Please click the button below to verify your email address:</p>
+          <a href="#" style="display: inline-block; background: #0284c7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0;">Verify Email</a>
+          <p style="color: #64748b; font-size: 12px;">This link expires in 24 hours.</p>
+        </div>`
+      }),
+      passwordReset: () => ({
+        subject: 'Reset Your Password - Knowledge Base',
+        html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #0284c7;">Reset Your Password</h2>
+          <p>Hi John Doe,</p>
+          <p>Click the button below to reset your password:</p>
+          <a href="#" style="display: inline-block; background: #0284c7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0;">Reset Password</a>
+          <p style="color: #64748b; font-size: 12px;">This link expires in 1 hour.</p>
+        </div>`
+      })
+    };
+
+    if (!sampleData[template]) {
+      return res.status(400).json({ error: 'Unknown template type' });
+    }
+
+    const emailContent = sampleData[template]();
+    res.json({
+      template,
+      subject: emailContent.subject,
+      html: emailContent.html
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get available email templates (admin only)
+router.get('/templates', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    res.json({
+      templates: [
+        { id: 'todoAssigned', name: 'Todo Assigned', description: 'Sent when todos are assigned to a user' },
+        { id: 'issueAssigned', name: 'Issue Assigned', description: 'Sent when an issue is assigned to a user' },
+        { id: 'issueUpdated', name: 'Issue Updated', description: 'Sent when a watched issue is updated' },
+        { id: 'verification', name: 'Email Verification', description: 'Sent to verify email address' },
+        { id: 'passwordReset', name: 'Password Reset', description: 'Sent for password reset requests' }
+      ]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get todo notification queue status (admin only)
+router.get('/queue-status', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const status = getQueueStatus();
+    res.json({ queue: status });
   } catch (error) {
     next(error);
   }
