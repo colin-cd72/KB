@@ -44,7 +44,7 @@ function Articles() {
     queryKey: ['categories'],
     queryFn: async () => {
       const response = await categoriesApi.getAll();
-      return response.data;
+      return response.data.flat;
     },
   });
 
