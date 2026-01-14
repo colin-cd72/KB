@@ -550,6 +550,7 @@ function Todos() {
   const [filterAssigned, setFilterAssigned] = useState('');
   const [quickAddText, setQuickAddText] = useState('');
   const [quickAddImages, setQuickAddImages] = useState([]);
+  const [quickAddAssignee, setQuickAddAssignee] = useState('');
   const [uploadingImages, setUploadingImages] = useState(null);
   const [isListening, setIsListening] = useState(false);
   const [groupBy, setGroupBy] = useState('none'); // none, date, priority
@@ -624,7 +625,7 @@ function Todos() {
       const response = await usersApi.getAll({ limit: 100 });
       return response.data.users;
     },
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'technician',
   });
 
   // Mutations
@@ -678,8 +679,14 @@ function Todos() {
   });
 
   const quickAddTodo = useMutation({
-    mutationFn: async (title) => {
-      const response = await todosApi.quickAdd(title);
+    mutationFn: async ({ title, assigned_to }) => {
+      // Use create endpoint if assignee is selected, otherwise quick add
+      let response;
+      if (assigned_to) {
+        response = await todosApi.create({ title, priority: 'medium', assigned_to });
+      } else {
+        response = await todosApi.quickAdd(title);
+      }
       // Upload images if any
       if (quickAddImages.length > 0) {
         await todosApi.uploadImages(response.data.todo.id, quickAddImages);
@@ -691,6 +698,7 @@ function Todos() {
       queryClient.invalidateQueries(['todo-stats']);
       setQuickAddText('');
       setQuickAddImages([]);
+      setQuickAddAssignee('');
       toast.success('Todo added');
     },
   });
@@ -814,7 +822,10 @@ function Todos() {
   const handleQuickAdd = (e) => {
     e.preventDefault();
     if (quickAddText.trim()) {
-      quickAddTodo.mutate(quickAddText.trim());
+      quickAddTodo.mutate({
+        title: quickAddText.trim(),
+        assigned_to: quickAddAssignee || undefined
+      });
     }
   };
 
@@ -1055,8 +1066,8 @@ function Todos() {
       {/* Quick Add with voice and photo */}
       {canEdit && (
         <form onSubmit={handleQuickAdd} className="card p-4">
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
+          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+            <div className="flex-1 relative min-w-0">
               <input
                 type="text"
                 value={quickAddText}
@@ -1094,6 +1105,19 @@ function Todos() {
                 />
               </div>
             </div>
+            {/* Assignee dropdown */}
+            {users && users.length > 0 && (
+              <select
+                value={quickAddAssignee}
+                onChange={(e) => setQuickAddAssignee(e.target.value)}
+                className="input w-full sm:w-40 text-sm"
+              >
+                <option value="">Assign to...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            )}
             <button
               type="submit"
               disabled={!quickAddText.trim() || quickAddTodo.isPending}
