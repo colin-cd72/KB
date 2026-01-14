@@ -181,6 +181,73 @@ function ArticleEditor() {
     }, 0);
   };
 
+  // Handle paste event for images
+  const handlePaste = async (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+
+        if (!isEditing) {
+          toast.error('Please save the article first before pasting images');
+          return;
+        }
+
+        const file = item.getAsFile();
+        if (!file) return;
+
+        setUploading(true);
+        try {
+          await uploadMutation.mutateAsync(file);
+        } finally {
+          setUploading(false);
+        }
+        return;
+      }
+    }
+  };
+
+  // Handle drag and drop for images
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    if (!isEditing) {
+      toast.error('Please save the article first before uploading images');
+      return;
+    }
+
+    const files = e.dataTransfer?.files;
+    if (!files?.length) return;
+
+    const imageFile = Array.from(files).find(f => f.type.startsWith('image/'));
+    if (!imageFile) {
+      toast.error('Please drop an image file');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      await uploadMutation.mutateAsync(imageFile);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // Toolbar actions
   const toolbarActions = [
     { icon: Bold, action: () => insertText('**$1**', true), title: 'Bold' },
@@ -332,14 +399,36 @@ function ArticleEditor() {
           </div>
 
           {/* Content Editor */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div
+            className="flex-1 min-h-0 overflow-hidden relative"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             <textarea
               ref={textareaRef}
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              placeholder="Write your article content in Markdown..."
+              onPaste={handlePaste}
+              placeholder="Write your article content in Markdown... (Paste or drag & drop images)"
               className="w-full h-full p-4 border-none outline-none focus:ring-0 resize-none font-mono text-sm bg-transparent"
             />
+            {isDragging && (
+              <div className="absolute inset-0 bg-primary-50/90 border-2 border-dashed border-primary-400 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-2 text-primary-600">
+                  <Image className="w-8 h-8" />
+                  <span className="font-medium">Drop image here</span>
+                </div>
+              </div>
+            )}
+            {uploading && (
+              <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                <div className="flex items-center gap-2 text-primary-600">
+                  <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Uploading image...</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Images */}
