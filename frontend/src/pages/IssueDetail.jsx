@@ -47,6 +47,14 @@ function IssueDetail() {
   const [imageAnalysis, setImageAnalysis] = useState({});
   const [selectedImage, setSelectedImage] = useState(null);
 
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    priority: ''
+  });
+
   const { data: issue, isLoading } = useQuery({
     queryKey: ['issue', id],
     queryFn: async () => {
@@ -136,6 +144,42 @@ function IssueDetail() {
       navigate('/issues');
     },
   });
+
+  const updateIssue = useMutation({
+    mutationFn: (data) => issuesApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['issue', id]);
+      queryClient.invalidateQueries(['issues']);
+      setIsEditing(false);
+      toast.success('Issue updated');
+    },
+  });
+
+  const startEditing = () => {
+    setEditForm({
+      title: issue?.title || '',
+      description: issue?.description || '',
+      priority: issue?.priority || 'medium'
+    });
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditForm({ title: '', description: '', priority: '' });
+  };
+
+  const saveEditing = () => {
+    if (!editForm.title.trim()) {
+      toast.error('Title is required');
+      return;
+    }
+    updateIssue.mutate({
+      title: editForm.title,
+      description: editForm.description,
+      priority: editForm.priority
+    });
+  };
 
   // Load AI conversation from issue when it loads
   useEffect(() => {
@@ -287,47 +331,94 @@ function IssueDetail() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold text-gray-900">{issue.title}</h1>
-            <span className={`badge badge-${issue.priority}`}>{issue.priority}</span>
-            <span className={`badge status-${issue.status}`}>{issue.status.replace('_', ' ')}</span>
-          </div>
-          <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
-            <span className="flex items-center gap-1">
-              <User className="w-4 h-4" />
-              {issue.created_by_name}
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              {new Date(issue.created_at).toLocaleString()}
-            </span>
-            <span className="flex items-center gap-1">
-              <Eye className="w-4 h-4" />
-              {issue.view_count} views
-            </span>
-          </div>
+          {isEditing ? (
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={editForm.title}
+                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                className="input text-xl font-bold w-full"
+                placeholder="Issue title"
+              />
+              <div className="flex items-center gap-2">
+                <select
+                  value={editForm.priority}
+                  onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
+                  className="input w-auto"
+                >
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+                <span className={`badge status-${issue.status}`}>{issue.status.replace('_', ' ')}</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl font-bold text-gray-900">{issue.title}</h1>
+                <span className={`badge badge-${issue.priority}`}>{issue.priority}</span>
+                <span className={`badge status-${issue.status}`}>{issue.status.replace('_', ' ')}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                <span className="flex items-center gap-1">
+                  <User className="w-4 h-4" />
+                  {issue.created_by_name}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  {new Date(issue.created_at).toLocaleString()}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Eye className="w-4 h-4" />
+                  {issue.view_count} views
+                </span>
+              </div>
+            </>
+          )}
         </div>
         {canEdit && (
           <div className="flex gap-2">
-            <select
-              value={issue.status}
-              onChange={(e) => updateStatus.mutate(e.target.value)}
-              className="input w-auto"
-            >
-              <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-            {canDelete && (
-              <button
-                onClick={() => {
-                  if (confirm('Delete this issue?')) deleteIssue.mutate();
-                }}
-                className="btn btn-danger"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            {isEditing ? (
+              <>
+                <button
+                  onClick={saveEditing}
+                  disabled={updateIssue.isPending}
+                  className="btn btn-primary"
+                >
+                  {updateIssue.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+                </button>
+                <button onClick={cancelEditing} className="btn btn-secondary">
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={startEditing} className="btn btn-secondary">
+                  <Edit className="w-4 h-4" />
+                </button>
+                <select
+                  value={issue.status}
+                  onChange={(e) => updateStatus.mutate(e.target.value)}
+                  className="input w-auto"
+                >
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Delete this issue?')) deleteIssue.mutate();
+                    }}
+                    className="btn btn-danger"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
@@ -339,9 +430,18 @@ function IssueDetail() {
           {/* Description */}
           <div className="card p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Description</h2>
-            <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
-              {issue.description}
-            </div>
+            {isEditing ? (
+              <textarea
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                className="input w-full min-h-[200px]"
+                placeholder="Describe the issue..."
+              />
+            ) : (
+              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
+                {issue.description || <span className="text-gray-400 italic">No description provided</span>}
+              </div>
+            )}
           </div>
 
           {/* Images */}
