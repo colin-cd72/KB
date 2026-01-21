@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../config/database');
 const { authenticate, isTechnician, isAdmin } = require('../middleware/auth');
+const { detectCarrier, getTrackingUrl } = require('../services/trackingService');
 
 const router = express.Router();
 
@@ -358,6 +359,36 @@ router.get('/shipping-updates', authenticate, isTechnician, async (req, res, nex
     `);
 
     res.json({ updates: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// RMA Tracking Details - shipped RMAs with tracking info
+router.get('/rma-tracking', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const result = await query(`
+      SELECT r.id, r.rma_number, r.item_name, r.tracking_number,
+             r.shipped_at, r.status,
+             u.name as created_by_name,
+             EXTRACT(DAY FROM NOW() - r.shipped_at)::integer as days_in_transit
+      FROM rmas r
+      LEFT JOIN users u ON r.created_by = u.id
+      WHERE r.status = 'shipped'
+        AND r.tracking_number IS NOT NULL
+        AND r.tracking_number != ''
+      ORDER BY r.shipped_at ASC
+      LIMIT 20
+    `);
+
+    // Add carrier info and tracking URLs
+    const rmas = result.rows.map(rma => ({
+      ...rma,
+      carrier: detectCarrier(rma.tracking_number),
+      tracking_url: getTrackingUrl(rma.tracking_number)
+    }));
+
+    res.json({ rmas });
   } catch (error) {
     next(error);
   }

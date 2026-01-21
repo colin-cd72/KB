@@ -17,7 +17,9 @@ import {
   Package,
   Folder,
   Truck,
-  PackageCheck
+  PackageCheck,
+  ExternalLink,
+  MapPin
 } from 'lucide-react';
 import clsx from 'clsx';
 import {
@@ -372,6 +374,112 @@ function TrendsWidget({ trends }) {
   );
 }
 
+// RMA Tracking Widget - Shows shipped RMAs with tracking details
+function RmaTrackingWidget({ rmas }) {
+  if (!rmas || rmas.length === 0) {
+    return (
+      <div className="card">
+        <div className="px-6 py-5 border-b border-dark-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center">
+              <MapPin className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-dark-900">RMA Tracking</h2>
+              <p className="text-sm text-dark-500">Track shipped RMAs</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 text-center text-dark-500">
+          <Package className="w-12 h-12 mx-auto mb-2 text-dark-300" />
+          <p>No RMAs currently in transit</p>
+        </div>
+      </div>
+    );
+  }
+
+  const getCarrierBadge = (carrier) => {
+    const colors = {
+      usps: 'bg-blue-50 text-blue-700 border-blue-200',
+      ups: 'bg-amber-50 text-amber-700 border-amber-200',
+      fedex: 'bg-purple-50 text-purple-700 border-purple-200',
+      dhl: 'bg-red-50 text-red-700 border-red-200',
+      unknown: 'bg-dark-50 text-dark-600 border-dark-200'
+    };
+    return colors[carrier] || colors.unknown;
+  };
+
+  const getCarrierName = (carrier) => {
+    const names = { usps: 'USPS', ups: 'UPS', fedex: 'FedEx', dhl: 'DHL' };
+    return names[carrier] || 'Unknown';
+  };
+
+  const getDaysColor = (days) => {
+    if (days <= 7) return 'text-success-600';
+    if (days <= 14) return 'text-warning-600';
+    return 'text-danger-600';
+  };
+
+  return (
+    <div className="card">
+      <div className="px-6 py-5 border-b border-dark-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center">
+            <MapPin className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-dark-900">RMA Tracking</h2>
+            <p className="text-sm text-dark-500">{rmas.length} shipment{rmas.length !== 1 ? 's' : ''} in transit</p>
+          </div>
+        </div>
+        <Link to="/rmas?status=shipped" className="text-sm font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1">
+          View all
+          <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+      <div className="divide-y divide-dark-100 max-h-96 overflow-y-auto">
+        {rmas.map((rma) => (
+          <div key={rma.id} className="px-6 py-3 hover:bg-primary-50/50 transition-colors">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <Link to={`/rmas/${rma.id}`} className="font-medium text-dark-900 hover:text-primary-600 transition-colors text-sm truncate block">
+                  {rma.item_name}
+                </Link>
+                <p className="text-xs text-dark-500 mt-0.5">
+                  <span className="font-mono">{rma.rma_number}</span>
+                  <span className="mx-2">•</span>
+                  <span>by {rma.created_by_name}</span>
+                </p>
+              </div>
+              <span className={clsx('text-xs font-medium', getDaysColor(rma.days_in_transit))}>
+                {rma.days_in_transit}d
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <span className={clsx('badge text-xs', getCarrierBadge(rma.carrier))}>
+                {getCarrierName(rma.carrier)}
+              </span>
+              <code className="text-xs text-dark-500 font-mono truncate flex-1">
+                {rma.tracking_number}
+              </code>
+              <a
+                href={rma.tracking_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="p-1 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded"
+                title="Track package"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Shipping Updates Widget
 function ShippingUpdatesWidget({ updates }) {
   if (!updates || updates.length === 0) {
@@ -528,6 +636,15 @@ function Dashboard() {
     queryKey: ['shipping-updates'],
     queryFn: async () => {
       const response = await dashboardApi.getShippingUpdates();
+      return response.data;
+    },
+    enabled: user?.role !== 'viewer',
+  });
+
+  const { data: rmaTracking } = useQuery({
+    queryKey: ['rma-tracking'],
+    queryFn: async () => {
+      const response = await dashboardApi.getRmaTracking();
       return response.data;
     },
     enabled: user?.role !== 'viewer',
@@ -694,9 +811,16 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Shipping Updates (technician+ only) */}
-      {user?.role !== 'viewer' && shippingUpdates?.updates?.length > 0 && (
-        <ShippingUpdatesWidget updates={shippingUpdates?.updates} />
+      {/* RMA Widgets (technician+ only) */}
+      {user?.role !== 'viewer' && (rmaTracking?.rmas?.length > 0 || shippingUpdates?.updates?.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {rmaTracking?.rmas?.length > 0 && (
+            <RmaTrackingWidget rmas={rmaTracking?.rmas} />
+          )}
+          {shippingUpdates?.updates?.length > 0 && (
+            <ShippingUpdatesWidget updates={shippingUpdates?.updates} />
+          )}
+        </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
