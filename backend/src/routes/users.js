@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const { query } = require('../config/database');
-const { authenticate, isAdmin } = require('../middleware/auth');
+const { authenticate, isAdmin, isTechnician } = require('../middleware/auth');
 const { sendEmail, templates } = require('../services/emailService');
 const { logActivity } = require('./activityLogs');
 
@@ -28,8 +28,8 @@ const validate = (req, res, next) => {
   next();
 };
 
-// Get all users (admin only)
-router.get('/', authenticate, isAdmin, async (req, res, next) => {
+// Get all users (technician+)
+router.get('/', authenticate, isTechnician, async (req, res, next) => {
   try {
     const { page = 1, limit = 20, role, search } = req.query;
     const offset = (page - 1) * limit;
