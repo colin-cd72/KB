@@ -414,10 +414,10 @@ function RmaTrackingWidget({ rmas }) {
     return names[carrier] || 'Unknown';
   };
 
-  const getDaysColor = (days) => {
-    if (days <= 7) return 'text-green-600';
-    if (days <= 14) return 'text-amber-600';
-    return 'text-red-600';
+  const getDaysStyle = (days) => {
+    if (days <= 7) return { color: '#16a34a' }; // green-600
+    if (days <= 14) return { color: '#d97706' }; // amber-600
+    return { color: '#dc2626' }; // red-600
   };
 
   return (
@@ -451,7 +451,7 @@ function RmaTrackingWidget({ rmas }) {
                   <span>by {rma.created_by_name}</span>
                 </p>
               </div>
-              <span className={clsx('text-xs font-medium', getDaysColor(rma.days_in_transit))}>
+              <span className="text-xs font-medium" style={getDaysStyle(rma.days_in_transit)}>
                 {rma.days_in_transit}d
               </span>
             </div>
