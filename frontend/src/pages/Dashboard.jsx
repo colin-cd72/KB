@@ -415,9 +415,9 @@ function RmaTrackingWidget({ rmas }) {
   };
 
   const getDaysColor = (days) => {
-    if (days <= 7) return 'text-success-600';
-    if (days <= 14) return 'text-warning-600';
-    return 'text-danger-600';
+    if (days <= 7) return 'text-green-600';
+    if (days <= 14) return 'text-amber-600';
+    return 'text-red-600';
   };
 
   return (
