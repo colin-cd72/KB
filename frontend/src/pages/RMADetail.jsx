@@ -22,7 +22,9 @@ import {
   History,
   MessageSquare,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  MapPin,
+  Navigation
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -115,6 +117,7 @@ function RMADetail() {
     onSuccess: (response) => {
       queryClient.invalidateQueries(['rma', id]);
       queryClient.invalidateQueries(['rmas']);
+      queryClient.invalidateQueries(['rma-tracking', id]);
       if (response.data.updated) {
         toast.success(`Package delivered! RMA updated to received status.`);
       } else {
@@ -124,6 +127,18 @@ function RMADetail() {
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to check tracking');
     }
+  });
+
+  // Fetch tracking details for shipped RMAs
+  const { data: trackingData, isLoading: trackingLoading, refetch: refetchTracking } = useQuery({
+    queryKey: ['rma-tracking', id],
+    queryFn: async () => {
+      const response = await rmasApi.getTracking(id);
+      return response.data;
+    },
+    enabled: !!rma?.tracking_number && rma?.status === 'shipped',
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    staleTime: 2 * 60 * 1000 // Consider data stale after 2 minutes
   });
 
   const handleImageUpload = async (e) => {
@@ -587,6 +602,132 @@ function RMADetail() {
               </dl>
             )}
           </div>
+
+          {/* Package Tracking Status */}
+          {rma.tracking_number && rma.status === 'shipped' && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-dark-900 flex items-center gap-2">
+                  <Navigation className="w-5 h-5 text-primary-600" />
+                  Package Tracking
+                </h3>
+                <button
+                  onClick={() => refetchTracking()}
+                  disabled={trackingLoading}
+                  className="btn btn-secondary text-sm flex items-center gap-2"
+                >
+                  {trackingLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  Refresh
+                </button>
+              </div>
+
+              {trackingLoading && !trackingData ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+                  <span className="ml-2 text-dark-500">Loading tracking info...</span>
+                </div>
+              ) : trackingData ? (
+                <div className="space-y-4">
+                  {/* Current Status */}
+                  <div className="p-4 rounded-xl bg-gradient-to-r from-primary-50 to-accent-50 border border-primary-100">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-dark-500">Current Status</p>
+                        <p className="text-lg font-bold text-dark-900">{trackingData.status || 'Unknown'}</p>
+                      </div>
+                      <div className={clsx(
+                        'px-3 py-1 rounded-full text-sm font-medium',
+                        trackingData.delivered
+                          ? 'bg-success-100 text-success-700'
+                          : 'bg-accent-100 text-accent-700'
+                      )}>
+                        {trackingData.delivered ? 'Delivered' : 'In Transit'}
+                      </div>
+                    </div>
+                    {trackingData.carrier && (
+                      <p className="mt-2 text-sm text-dark-500">
+                        Carrier: <span className="font-medium uppercase">{trackingData.carrier}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Tracking Events Timeline */}
+                  {trackingData.events && trackingData.events.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-dark-700 mb-3">Tracking History</h4>
+                      <div className="space-y-3 max-h-64 overflow-y-auto">
+                        {trackingData.events.map((event, idx) => (
+                          <div key={idx} className="flex gap-3">
+                            <div className="flex flex-col items-center">
+                              <div className={clsx(
+                                'w-3 h-3 rounded-full',
+                                idx === 0 ? 'bg-primary-500' : 'bg-dark-300'
+                              )} />
+                              {idx < trackingData.events.length - 1 && (
+                                <div className="w-0.5 h-full bg-dark-200 mt-1" />
+                              )}
+                            </div>
+                            <div className="flex-1 pb-3">
+                              <p className={clsx(
+                                'text-sm',
+                                idx === 0 ? 'font-medium text-dark-900' : 'text-dark-600'
+                              )}>
+                                {event.status}
+                              </p>
+                              {event.location && (
+                                <p className="text-xs text-dark-500 flex items-center gap-1 mt-0.5">
+                                  <MapPin className="w-3 h-3" />
+                                  {event.location}
+                                </p>
+                              )}
+                              <p className="text-xs text-dark-400 mt-0.5">
+                                {event.datetime ? new Date(event.datetime).toLocaleString() : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No events message */}
+                  {(!trackingData.events || trackingData.events.length === 0) && (
+                    <p className="text-sm text-dark-500 text-center py-4">
+                      No tracking events available yet. Click refresh to check for updates.
+                    </p>
+                  )}
+
+                  {/* Direct tracking link */}
+                  {trackingData.tracking_url && (
+                    <a
+                      href={trackingData.tracking_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-2 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      View on carrier website
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-dark-500">
+                  <Navigation className="w-12 h-12 mx-auto mb-2 text-dark-300" />
+                  <p>Unable to load tracking info</p>
+                  <button
+                    onClick={() => refetchTracking()}
+                    className="mt-2 text-primary-600 hover:text-primary-700 text-sm"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Images */}
           <div className="card p-6">
