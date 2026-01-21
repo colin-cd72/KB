@@ -1056,6 +1056,42 @@ function Todos() {
             {completedTodos}/{totalTodos}
           </span>
         </div>
+
+        {/* Active/Completed Tabs */}
+        <div className="flex gap-2 mt-4 border-t pt-4">
+          <button
+            onClick={() => setShowCompleted(false)}
+            className={clsx(
+              'px-4 py-2 rounded-lg font-medium text-sm transition-colors',
+              !showCompleted
+                ? 'bg-primary-100 text-primary-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            )}
+          >
+            Active
+            {stats?.pending > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-primary-200 text-primary-800 rounded-full text-xs">
+                {stats.pending}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setShowCompleted(true)}
+            className={clsx(
+              'px-4 py-2 rounded-lg font-medium text-sm transition-colors',
+              showCompleted
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            )}
+          >
+            Completed
+            {stats?.completed > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-green-200 text-green-800 rounded-full text-xs">
+                {stats.completed}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Quick Add with voice and photo */}
@@ -1153,16 +1189,6 @@ function Todos() {
       {/* Filters and grouping */}
       <div className="card p-4">
         <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={showCompleted}
-              onChange={(e) => setShowCompleted(e.target.checked)}
-              className="rounded border-gray-300 text-primary-600"
-            />
-            Show completed
-          </label>
-
           <select
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value)}
