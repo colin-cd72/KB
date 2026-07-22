@@ -17,7 +17,8 @@
 - **Asset tags are stored verbatim as digit strings with leading zeros preserved** (`'0075'`, not `75`). Never cast to integer.
 - Existing route conventions: `authenticate` + `isViewer` for reads, `authenticate` + `isTechnician` for writes, from `../middleware/auth`. Validation via `express-validator`. DB access via `query` from `../config/database`.
 - Migrations are plain SQL files in `backend/migrations/`, applied manually with `psql`.
-- Tests that require a database read `TEST_DATABASE_URL` and **skip** when it is unset. They must never run against production.
+- Tests that require a database read `TEST_DATABASE_URL` and **skip** when it is unset. **`TEST_DATABASE_URL` must point at the dedicated `kb_test` database, never at `DATABASE_URL`.** Task 1 Step 4 creates it. Never set `TEST_DATABASE_URL="$DATABASE_URL"`.
+- `supertest` may be added as a devDependency for HTTP-level route tests. It is an assertion library, not a test runner, so it does not conflict with the `node:test`-only rule above.
 
 ---
 
@@ -132,27 +133,57 @@ test('asset_tag schema', { skip: !URL && 'TEST_DATABASE_URL not set' }, async (t
 });
 ```
 
-- [ ] **Step 4: Run the test and verify it fails**
+- [ ] **Step 4: Create the dedicated test database**
 
-Run: `cd backend && TEST_DATABASE_URL="$DATABASE_URL" npm test`
-Expected: FAIL — `columns exist` returns `[]` because the migration has not been applied.
-
-- [ ] **Step 5: Apply the migration**
-
-Run against the target database:
+Tests must never touch production. Create `kb_test` with the same schema as the
+live database, using the existing migration entry point:
 
 ```bash
-cd backend && psql "$DATABASE_URL" -f migrations/add_asset_tag.sql
+cd backend
+createdb kb_test 2>/dev/null || echo "kb_test already exists"
+
+# Derive the test URL from DATABASE_URL by swapping only the database name.
+export TEST_DATABASE_URL="$(node -e "
+  const u = new URL(process.env.DATABASE_URL);
+  u.pathname = '/kb_test';
+  console.log(u.toString());
+")"
+echo "TEST_DATABASE_URL -> ${TEST_DATABASE_URL##*/}"
+
+# Build the base schema, then apply this task's migration on top.
+DATABASE_URL="$TEST_DATABASE_URL" npm run migrate
+```
+
+Expected: `TEST_DATABASE_URL -> kb_test`, then migration output. **If `${TEST_DATABASE_URL##*/}`
+prints anything other than `kb_test`, stop — do not run the tests.**
+
+- [ ] **Step 5: Run the test and verify it fails**
+
+```bash
+cd backend && npm test
+```
+
+Expected: FAIL — `columns exist` returns `[]` because `add_asset_tag.sql` has not been applied.
+
+- [ ] **Step 6: Apply the migration to the test database**
+
+```bash
+cd backend && psql "$TEST_DATABASE_URL" -f migrations/add_asset_tag.sql
 ```
 
 Expected output: `ALTER TABLE` ×3, `CREATE INDEX`.
 
-- [ ] **Step 6: Run the test and verify it passes**
+- [ ] **Step 7: Run the test and verify it passes**
 
-Run: `cd backend && TEST_DATABASE_URL="$DATABASE_URL" npm test`
+```bash
+cd backend && npm test
+```
+
 Expected: PASS — 3 subtests.
 
-- [ ] **Step 7: Commit**
+Production gets this migration in Task 9 Step 1, not here.
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add backend/migrations/add_asset_tag.sql backend/test/schema.test.js backend/package.json
@@ -816,40 +847,156 @@ git commit -m "feat: add vision service for equipment identification from photo"
   - `PATCH /api/equipment/:id/asset-tag` body `{ asset_tag, asset_photo_path?, ai_identification? }` → `{ equipment }` | 409
   - `POST /api/equipment` additionally accepts `asset_tag`, `asset_photo_path`, `ai_identification`; returns 409 on a duplicate tag.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Install supertest and make the app importable**
+
+```bash
+cd backend && npm install --save-dev supertest@^6.3.4
+```
+
+`src/server.js` calls `app.listen()` at require time, which would bind port 5105
+and start the cron jobs during tests. Guard it. In `backend/src/server.js`, replace:
+
+```js
+app.listen(PORT, () => {
+  console.log(`KB Backend running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+  // Initialize email reminders
+  const { initializeReminders } = require('./services/reminderService');
+  initializeReminders();
+});
+```
+
+with:
+
+```js
+// Only listen when run directly. Required so tests can import the app
+// without binding a port or starting cron jobs.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`KB Backend running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+
+    // Initialize email reminders
+    const { initializeReminders } = require('./services/reminderService');
+    initializeReminders();
+  });
+}
+```
+
+Verify the server still starts normally: `npm run dev` → `KB Backend running on port 5105`, then stop it.
+
+- [ ] **Step 2: Write the failing test**
 
 Create `backend/test/equipmentRoutes.test.js`:
 
 ```js
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeAssetTag } = require('../src/lib/assetTag');
 
-// Route-level contract checks that need no server: the handlers delegate tag
-// validation to normalizeAssetTag, so these lock in the behaviour the routes rely on.
-test('asset-tag route contract', async (t) => {
-  await t.test('a scanned tag with leading zeros round-trips unchanged', () => {
-    assert.equal(normalizeAssetTag('0075'), '0075');
+const URL = process.env.TEST_DATABASE_URL;
+
+// The app's db layer reads DATABASE_URL. Point it at the test database
+// BEFORE requiring the app, so no test can reach production.
+if (URL) process.env.DATABASE_URL = URL;
+
+test('equipment asset-tag routes', { skip: !URL && 'TEST_DATABASE_URL not set' }, async (t) => {
+  const request = require('supertest');
+  const jwt = require('jsonwebtoken');
+  const { Pool } = require('pg');
+  const app = require('../src/server');
+
+  const pool = new Pool({ connectionString: URL });
+  t.after(() => pool.end());
+
+  // A technician user is required by isTechnician; authenticate looks it up by id.
+  const { rows: [user] } = await pool.query(
+    `INSERT INTO users (email, password_hash, name, role, is_active)
+     VALUES ('routetest@kb.local', 'x', 'Route Test', 'technician', true)
+     ON CONFLICT (email) DO UPDATE SET role = 'technician', is_active = true
+     RETURNING id`
+  );
+  const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
+  const auth = (r) => r.set('Authorization', `Bearer ${token}`);
+
+  t.after(async () => {
+    await pool.query(`DELETE FROM equipment WHERE qr_code LIKE 'ROUTETEST-%'`);
+    await pool.query(`DELETE FROM users WHERE email = 'routetest@kb.local'`);
   });
 
-  await t.test('a scanner emitting whitespace or an Excel artifact still resolves', () => {
-    assert.equal(normalizeAssetTag(' 0075\n'), '0075');
-    assert.equal(normalizeAssetTag('`0075'), '0075');
+  await t.test('GET /asset-tag/:tag rejects a non-tag with 400', async () => {
+    const res = await auth(request(app).get('/api/equipment/asset-tag/N%2FA'));
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /valid asset tag/i);
   });
 
-  await t.test('a non-tag barcode is rejected before it reaches the database', () => {
-    assert.equal(normalizeAssetTag('N/A'), null);
-    assert.equal(normalizeAssetTag('FS-HD-1'), null);
+  await t.test('GET /asset-tag/:tag returns 404 for an unassigned tag', async () => {
+    const res = await auth(request(app).get('/api/equipment/asset-tag/999999'));
+    assert.equal(res.status, 404);
+  });
+
+  await t.test('GET /asset-tag/:tag returns the equipment for an assigned tag', async () => {
+    await pool.query(
+      `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('Route Fixture','ROUTETEST-1','0801')`
+    );
+    const res = await auth(request(app).get('/api/equipment/asset-tag/0801'));
+    assert.equal(res.status, 200);
+    assert.equal(res.body.equipment.asset_tag, '0801');
+    assert.equal(res.body.equipment.name, 'Route Fixture');
+  });
+
+  await t.test('POST / rejects a duplicate asset tag with 409', async () => {
+    const res = await auth(request(app).post('/api/equipment'))
+      .send({ name: 'Dupe Attempt', asset_tag: '0801' });
+    assert.equal(res.status, 409);
+    assert.ok(res.body.conflict, 'expected the conflicting row to be reported');
+  });
+
+  await t.test('POST / stores a valid tag and preserves leading zeros', async () => {
+    const res = await auth(request(app).post('/api/equipment'))
+      .send({ name: 'New Scan', asset_tag: '0802' });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.equipment.asset_tag, '0802');
+    await pool.query(`UPDATE equipment SET qr_code = 'ROUTETEST-2' WHERE id = $1`,
+      [res.body.equipment.id]);
+  });
+
+  await t.test('PATCH /:id/asset-tag binds a tag to existing equipment', async () => {
+    const { rows: [eq] } = await pool.query(
+      `INSERT INTO equipment (name, qr_code) VALUES ('Bind Target','ROUTETEST-3') RETURNING id`
+    );
+    const res = await auth(request(app).patch(`/api/equipment/${eq.id}/asset-tag`))
+      .send({ asset_tag: '0803' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.equipment.asset_tag, '0803');
+  });
+
+  await t.test('PATCH /:id/asset-tag returns 409 when the tag belongs to another asset', async () => {
+    const { rows: [eq] } = await pool.query(
+      `INSERT INTO equipment (name, qr_code) VALUES ('Other','ROUTETEST-4') RETURNING id`
+    );
+    const res = await auth(request(app).patch(`/api/equipment/${eq.id}/asset-tag`))
+      .send({ asset_tag: '0801' });
+    assert.equal(res.status, 409);
+  });
+
+  await t.test('POST /identify requires a photo', async () => {
+    const res = await auth(request(app).post('/api/equipment/identify'));
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /no photo/i);
   });
 });
 ```
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [ ] **Step 3: Run the test and verify it fails**
 
-Run: `cd backend && npm test -- --test-name-pattern="asset-tag route contract"`
-Expected: PASS immediately (it exercises Task 2). This file exists to pin the routes' assumptions; the real verification is Step 5's manual curl.
+```bash
+cd backend && npm test -- --test-name-pattern="equipment asset-tag routes"
+```
 
-- [ ] **Step 3: Add the imports and photo upload config**
+Expected: FAIL — the `/asset-tag/:tag`, `/identify`, and `PATCH` routes return 404 because they do not exist yet, and `POST /` ignores `asset_tag`.
+
+- [ ] **Step 4: Add the imports and photo upload config**
 
 In `backend/src/routes/equipment.js`, after the existing `fetchEquipmentImage` import (around line 11), add:
 
@@ -882,7 +1029,7 @@ function saveAssetPhoto(buffer, mimetype) {
 }
 ```
 
-- [ ] **Step 4: Add the three routes**
+- [ ] **Step 5: Add the three routes**
 
 In `backend/src/routes/equipment.js`, immediately after the existing `router.get('/qr/:code', ...)` handler, add:
 
@@ -961,7 +1108,7 @@ router.patch('/:id/asset-tag', authenticate, isTechnician, async (req, res, next
 });
 ```
 
-- [ ] **Step 5: Extend equipment creation to accept a tag**
+- [ ] **Step 6: Extend equipment creation to accept a tag**
 
 In the existing `router.post('/', ...)` handler, change the destructure and INSERT. Replace:
 
@@ -1000,26 +1147,28 @@ Then replace the INSERT statement:
       );
 ```
 
-- [ ] **Step 6: Verify the endpoints by hand**
-
-Start the server (`npm run dev`), obtain a JWT by logging in, then:
+- [ ] **Step 7: Run the tests and verify they pass**
 
 ```bash
-TOKEN="<jwt>"
-# 400 on a non-tag
-curl -s -H "Authorization: Bearer $TOKEN" localhost:5105/api/equipment/asset-tag/N%2FA
-# 404 on a valid but unknown tag
-curl -s -H "Authorization: Bearer $TOKEN" localhost:5105/api/equipment/asset-tag/9999
-# 200 once a tag exists (run the backfill first, then use a real one)
-curl -s -H "Authorization: Bearer $TOKEN" localhost:5105/api/equipment/asset-tag/0075
+cd backend && npm test -- --test-name-pattern="equipment asset-tag routes"
 ```
 
-Expected: `{"error":"Not a valid asset tag",...}`, then `{"error":"No equipment with that asset tag",...}`, then an equipment object.
+Expected: PASS — 8 subtests covering 400 on a non-tag, 404 on an unassigned tag,
+200 on an assigned tag, 409 on a duplicate create, 201 with leading zeros preserved,
+200 on bind, 409 on binding another asset's tag, and 400 when `/identify` gets no photo.
 
-- [ ] **Step 7: Commit**
+Then confirm the whole suite is still green:
 
 ```bash
-git add backend/src/routes/equipment.js backend/test/equipmentRoutes.test.js
+cd backend && npm test
+```
+
+Expected: PASS — schema, assetTag, backfill, visionService, and route tests.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add backend/src/routes/equipment.js backend/test/equipmentRoutes.test.js backend/src/server.js backend/package.json
 git commit -m "feat: add asset tag lookup, photo identify, and tag binding endpoints"
 ```
 
