@@ -112,8 +112,14 @@ async function main() {
     );
 
     const check = verifyPositionalJoin(sheetRows, dbRows);
-    console.log(`Positional join: ${check.total - check.mismatches.length}/${check.total} ` +
-                `(${(check.rate * 100).toFixed(2)}%)`);
+    if (check.reason) {
+      // Row counts differ: a per-row fraction would be meaningless and, worse,
+      // would read like a perfect match on the one path that must not be misread.
+      console.log(`Positional join: FAILED - ${check.reason}`);
+    } else {
+      console.log(`Positional join: ${check.total - check.mismatches.length}/${check.total} ` +
+                  `(${(check.rate * 100).toFixed(2)}%)`);
+    }
     if (check.rate !== 1) {
       console.error('ABORT: positional join is not exact. Nothing was written.');
       if (check.reason) console.error('  ' + check.reason);
