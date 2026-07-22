@@ -23,42 +23,47 @@ test('asset_tag schema', { skip: !URL && 'TEST_DATABASE_URL not set' }, async (t
   });
 
   await t.test('partial unique index rejects duplicates but allows many nulls', async () => {
-    await pool.query('BEGIN');
+    const client = await pool.connect();
     try {
-      await pool.query(
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t1','TEST-1','9001')`
       );
       await assert.rejects(
-        () => pool.query(
+        () => client.query(
           `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t2','TEST-2','9001')`
         ),
         /duplicate key|unique/i
       );
-      await pool.query('ROLLBACK');
-      await pool.query('BEGIN');
-      await pool.query(
+      await client.query('ROLLBACK');
+
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t3','TEST-3',NULL)`
       );
-      await pool.query(
+      await client.query(
         `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t4','TEST-4',NULL)`
       );
+      await client.query('ROLLBACK');
     } finally {
-      await pool.query('ROLLBACK');
+      client.release();
     }
   });
 
   await t.test('leading zeros are preserved', async () => {
-    await pool.query('BEGIN');
+    const client = await pool.connect();
     try {
-      await pool.query(
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t5','TEST-5','0075')`
       );
-      const { rows } = await pool.query(
+      const { rows } = await client.query(
         `SELECT asset_tag FROM equipment WHERE qr_code = 'TEST-5'`
       );
       assert.equal(rows[0].asset_tag, '0075');
+      await client.query('ROLLBACK');
     } finally {
-      await pool.query('ROLLBACK');
+      client.release();
     }
   });
 });
