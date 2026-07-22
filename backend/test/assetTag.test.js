@@ -42,4 +42,17 @@ test('normalizeAssetTag', async (t) => {
   await t.test('accepts numeric input by coercing to string', () => {
     assert.equal(normalizeAssetTag(312), '312');
   });
+
+  await t.test('never throws on exotic input types, returns null', () => {
+    const exotic = [
+      true, false, NaN, Infinity, -1, 3.14, 0,
+      [], ['0075'], {}, { tag: '0075' },
+      Symbol('0075'), () => '0075', new Date(0), 0n,
+    ];
+    for (const v of exotic) {
+      const label = typeof v === 'symbol' ? 'Symbol' : String(typeof v);
+      assert.doesNotThrow(() => normalizeAssetTag(v), `threw on ${label}`);
+      assert.equal(normalizeAssetTag(v), null, `expected null for ${label}`);
+    }
+  });
 });
