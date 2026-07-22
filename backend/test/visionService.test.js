@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildToolSchema, parseToolResponse } = require('../src/services/visionService');
+const { buildToolSchema, parseToolResponse, identifyFromPhoto } = require('../src/services/visionService');
 
 test('buildToolSchema', async (t) => {
   await t.test('declares every field the review form needs', () => {
@@ -53,5 +53,57 @@ test('parseToolResponse', async (t) => {
       { type: 'tool_use', name: 'record_identification', input: { manufacturer: '   ', confidence: 'medium' } },
     ] };
     assert.equal(parseToolResponse(msg).manufacturer, null);
+  });
+
+  await t.test('trusts a serial that appears in the transcribed label text', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: 'ABC123', label_text: 'ATEM 2 M/E  S/N ABC123', confidence: 'high' } }] };
+    const r = parseToolResponse(msg);
+    assert.equal(r.serial_number, 'ABC123');
+    assert.equal(r.serial_number_unverified, null);
+  });
+
+  await t.test('rejects a serial that is absent from the label text', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: 'GUESSED99', label_text: 'ATEM 2 M/E', confidence: 'high' } }] };
+    const r = parseToolResponse(msg);
+    assert.equal(r.serial_number, null, 'uncorroborated serial must not be trusted');
+    assert.equal(r.serial_number_unverified, 'GUESSED99');
+  });
+
+  await t.test('rejects a serial when there is no label text at all', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: 'ABC123', confidence: 'high' } }] };
+    assert.equal(parseToolResponse(msg).serial_number, null);
+  });
+
+  await t.test('rejects a corroborated serial at low confidence', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: 'ABC123', label_text: 'S/N ABC123', confidence: 'low' } }] };
+    const r = parseToolResponse(msg);
+    assert.equal(r.serial_number, null);
+    assert.equal(r.serial_number_unverified, 'ABC123');
+  });
+
+  await t.test('matches a serial despite punctuation and case differences', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: 'abc-123', label_text: 'SERIAL: ABC123', confidence: 'medium' } }] };
+    assert.equal(parseToolResponse(msg).serial_number, 'abc-123');
+  });
+});
+
+test('identifyFromPhoto without an API key', async (t) => {
+  await t.test('returns a well-formed unavailable result instead of throwing', async () => {
+    const saved = process.env.CLAUDE_API_KEY;
+    delete process.env.CLAUDE_API_KEY;
+    try {
+      const r = await identifyFromPhoto(Buffer.from('not-a-real-image'), 'image/jpeg');
+      assert.equal(r.available, false);
+      assert.equal(r.confidence, 'none');
+      assert.equal(r.serial_number, null);
+      assert.match(r.error, /not configured/i);
+    } finally {
+      if (saved !== undefined) process.env.CLAUDE_API_KEY = saved;
+    }
   });
 });

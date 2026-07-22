@@ -14,6 +14,7 @@ function getClient() {
 const EMPTY = {
   available: true,
   manufacturer: null, model: null, name: null, serial_number: null,
+  serial_number_unverified: null,
   label_text: null, confidence: 'none', reasoning: null,
 };
 
@@ -71,14 +72,35 @@ function parseToolResponse(message) {
   );
   if (!block) return { ...EMPTY };
   const i = block.input || {};
+
+  const confidence = ['high', 'medium', 'low', 'none'].includes(i.confidence) ? i.confidence : 'none';
+  const serial = str(i.serial_number);
+  const labelText = str(i.label_text);
+
+  // A serial is only trusted when it actually appears in the transcribed label
+  // text and the model is reasonably confident. Prompt wording is not a
+  // safety mechanism: the model has been observed assigning "high" confidence
+  // while reading page furniture rather than a spec plate. A wrong serial is
+  // worse than a blank one - it looks like a fact and resurfaces inside an RMA.
+  const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const corroborated =
+    serial !== null &&
+    labelText !== null &&
+    norm(serial).length > 0 &&
+    norm(labelText).includes(norm(serial));
+  const trusted = corroborated && (confidence === 'high' || confidence === 'medium');
+
   return {
     available: true,
     manufacturer: str(i.manufacturer),
     model: str(i.model),
     name: str(i.name),
-    serial_number: str(i.serial_number),
-    label_text: str(i.label_text),
-    confidence: ['high', 'medium', 'low', 'none'].includes(i.confidence) ? i.confidence : 'none',
+    serial_number: trusted ? serial : null,
+    // Surfaced so the UI can show it as a hint the technician must type in
+    // themselves. Never pre-filled, never saved without confirmation.
+    serial_number_unverified: !trusted ? serial : null,
+    label_text: labelText,
+    confidence,
     reasoning: str(i.reasoning),
   };
 }
