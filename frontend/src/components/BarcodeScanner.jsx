@@ -10,8 +10,15 @@ import { Camera, CameraOff } from 'lucide-react';
 export default function BarcodeScanner({ onScan, onError }) {
   const videoRef = useRef(null);
   const controlsRef = useRef(null);
+  const streamRef = useRef(null);
   const firedRef = useRef(false);
   const [status, setStatus] = useState('starting');
+
+  const onScanRef = useRef(onScan);
+  const onErrorRef = useRef(onError);
+  // Keep the latest callbacks without making them effect dependencies - the
+  // camera must not restart because a parent re-rendered.
+  useEffect(() => { onScanRef.current = onScan; onErrorRef.current = onError; });
 
   useEffect(() => {
     let cancelled = false;
@@ -19,7 +26,9 @@ export default function BarcodeScanner({ onScan, onError }) {
     const fire = (text) => {
       if (firedRef.current || cancelled) return;
       firedRef.current = true;
-      onScan(String(text).trim());
+      // Some scanners prepend an AIM symbology identifier (]C1, ]A0, ...).
+      // Strip it so the tag normalizer sees the bare barcode value.
+      onScanRef.current(String(text).trim().replace(/^\][A-Za-z]\d/, ''));
     };
 
     async function start() {
@@ -31,6 +40,7 @@ export default function BarcodeScanner({ onScan, onError }) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
+        streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
@@ -57,15 +67,22 @@ export default function BarcodeScanner({ onScan, onError }) {
           requestAnimationFrame(tick);
         } else {
           const reader = new BrowserMultiFormatReader();
-          controlsRef.current = await reader.decodeFromStream(
+          const controls = await reader.decodeFromStream(
             stream,
             videoRef.current,
             (result) => { if (result) fire(result.getText()); }
           );
+          if (cancelled) {
+            // Unmounted while decodeFromStream was pending - cleanup has already
+            // run and could not have seen these controls.
+            try { controls.stop(); } catch { /* already stopped */ }
+            return;
+          }
+          controlsRef.current = controls;
         }
       } catch (err) {
         setStatus('denied');
-        onError(
+        onErrorRef.current(
           err && err.name === 'NotAllowedError'
             ? 'Camera permission denied. Enter the tag by hand.'
             : 'Camera unavailable. Enter the tag by hand.'
@@ -78,10 +95,12 @@ export default function BarcodeScanner({ onScan, onError }) {
     return () => {
       cancelled = true;
       try { controlsRef.current?.stop(); } catch { /* already stopped */ }
-      const s = videoRef.current?.srcObject;
-      if (s) s.getTracks().forEach((t) => t.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
     };
-  }, [onScan, onError]);
+  }, []);
 
   return (
     <div className="relative w-full overflow-hidden rounded-lg bg-black">
