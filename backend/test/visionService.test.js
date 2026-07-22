@@ -90,6 +90,32 @@ test('parseToolResponse', async (t) => {
       serial_number: 'abc-123', label_text: 'SERIAL: ABC123', confidence: 'medium' } }] };
     assert.equal(parseToolResponse(msg).serial_number, 'abc-123');
   });
+
+  await t.test('rejects a short serial that is only a substring of a longer token', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: '123', label_text: 'MODEL 9123X', confidence: 'high' } }] };
+    const r = parseToolResponse(msg);
+    assert.equal(r.serial_number, null);
+    assert.equal(r.serial_number_unverified, '123');
+  });
+
+  await t.test('rejects a serial assembled across unrelated label words', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: 'REV2SN', label_text: 'REV 2 SN 123', confidence: 'high' } }] };
+    assert.equal(parseToolResponse(msg).serial_number, null);
+  });
+
+  await t.test('still corroborates a serial split by punctuation in the label', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: 'ABC-123', label_text: 'S/N: ABC-123', confidence: 'high' } }] };
+    assert.equal(parseToolResponse(msg).serial_number, 'ABC-123');
+  });
+
+  await t.test('rejects a serial below the minimum length even if present', () => {
+    const msg = { content: [{ type: 'tool_use', name: 'record_identification', input: {
+      serial_number: 'AB1', label_text: 'S/N AB1', confidence: 'high' } }] };
+    assert.equal(parseToolResponse(msg).serial_number, null);
+  });
 });
 
 test('identifyFromPhoto without an API key', async (t) => {

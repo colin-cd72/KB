@@ -82,12 +82,46 @@ function parseToolResponse(message) {
   // safety mechanism: the model has been observed assigning "high" confidence
   // while reading page furniture rather than a spec plate. A wrong serial is
   // worse than a blank one - it looks like a fact and resurfaces inside an RMA.
-  const norm = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const corroborated =
-    serial !== null &&
-    labelText !== null &&
-    norm(serial).length > 0 &&
-    norm(labelText).includes(norm(serial));
+  //
+  // Corroboration must respect token boundaries. A raw substring search over a
+  // space-stripped label lets '123' match inside 'MODEL 9123X', and merges
+  // separate tokens so '2SN' matches across "REV 2 SN 123". Splitting into
+  // alphanumeric tokens and joining *any* run of consecutive tokens closes the
+  // substring hole but reopens the merge hole one level up: "REV 2 SN 123" is
+  // three space-separated tokens, and a run over all three still concatenates
+  // to "REV2SN" - a plausible-looking but bogus serial the model never
+  // actually read as one field. The fix is to only merge tokens across
+  // separators that don't contain whitespace (e.g. "ABC-123" or "S/N:ABC" are
+  // one written field); a whitespace gap is a hard boundary between distinct
+  // words and a run must not cross it. That keeps "S/N: ABC-123" corroborating
+  // serial "ABC-123" (tokens ABC + 123, joined only by a hyphen) while
+  // rejecting "REV2SN" assembled from three separate space-separated words.
+  const MIN_SERIAL_LEN = 4;
+  const MAX_RUN = 6;
+  const normTok = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const labelStr = labelText || '';
+  const tokenRe = /[A-Za-z0-9]+/g;
+  const labelTokens = [];
+  let m;
+  while ((m = tokenRe.exec(labelStr)) !== null) {
+    labelTokens.push({ text: m[0].toUpperCase(), start: m.index, end: m.index + m[0].length });
+  }
+
+  const candidates = new Set();
+  for (let i = 0; i < labelTokens.length; i++) {
+    let run = labelTokens[i].text;
+    candidates.add(run);
+    for (let j = i + 1; j < Math.min(i + MAX_RUN, labelTokens.length); j++) {
+      const between = labelStr.slice(labelTokens[j - 1].end, labelTokens[j].start);
+      if (/\s/.test(between)) break; // whitespace = a distinct word; stop extending this run
+      run += labelTokens[j].text;
+      candidates.add(run);
+    }
+  }
+
+  const ns = normTok(serial);
+  const corroborated = ns.length >= MIN_SERIAL_LEN && candidates.has(ns);
   const trusted = corroborated && (confidence === 'high' || confidence === 'medium');
 
   return {
