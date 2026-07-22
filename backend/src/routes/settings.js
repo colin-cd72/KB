@@ -61,7 +61,7 @@ router.get('/ai', authenticate, isAdmin, async (req, res, next) => {
     res.json({
       has_api_key: !!apiKey,
       api_key_masked: maskApiKey(apiKey),
-      model: 'claude-sonnet-4-20250514'
+      model: 'claude-sonnet-5'
     });
   } catch (error) {
     next(error);
@@ -121,7 +121,7 @@ router.post('/ai/test', authenticate, isAdmin, async (req, res, next) => {
 
     const startTime = Date.now();
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 50,
       messages: [
         { role: 'user', content: 'Say "API key is working!" in exactly those words.' }

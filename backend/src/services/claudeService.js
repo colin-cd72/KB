@@ -48,7 +48,7 @@ Guidelines:
     }
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [
@@ -90,7 +90,7 @@ async function suggestCategory(title, description, categories) {
     const categoryList = categories.map(c => `- ${c.name}: ${c.description || 'No description'}`).join('\n');
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 100,
       messages: [
         {
@@ -135,7 +135,7 @@ async function checkDuplicate(title, description, existingIssues) {
     ).join('\n');
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 200,
       messages: [
         {
@@ -181,7 +181,7 @@ async function summarizeContent(content, maxLength = 500) {
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 300,
       messages: [
         {
@@ -215,7 +215,7 @@ async function suggestRelatedIssues(issue, allIssues) {
     ).join('\n');
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 100,
       messages: [
         {
@@ -279,7 +279,7 @@ async function suggestColumnMappings(headers, sampleRows, equipmentFields) {
     const fieldList = equipmentFields.map(f => `- ${f}: ${fieldDescriptions[f] || f}`).join('\n');
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 500,
       messages: [
         {
@@ -410,7 +410,7 @@ After questions, still provide any preliminary suggestions you can based on avai
     messages.push({ role: 'user', content: userMessage });
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 600,
       system: systemPrompt,
       messages: messages
@@ -469,7 +469,7 @@ Keep your response under 300 words.`;
     ];
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 500,
       system: systemPrompt,
       messages: messages.slice(-6) // Keep last 6 messages for context
@@ -546,7 +546,7 @@ What do you see in the image? What might be causing the problem? What troublesho
     ];
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 1000,
       system: systemPrompt,
       messages: [
@@ -603,7 +603,7 @@ Respond in JSON format only:
 }`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 500,
       system: systemPrompt,
       messages: [
@@ -657,7 +657,7 @@ async function matchManualToEquipment(equipment, availableManuals) {
     ).join('\n');
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 100,
       messages: [
         {
