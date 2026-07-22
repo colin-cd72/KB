@@ -21,7 +21,11 @@ const photoUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const ok = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
-    cb(ok ? null : new Error('Only JPEG, PNG, or WebP images are accepted'), ok);
+    if (ok) return cb(null, true);
+    // Without an explicit status this surfaces as a 500 and leaks err.stack.
+    const err = new Error('Only JPEG, PNG, or WebP images are accepted');
+    err.statusCode = 400;
+    return cb(err, false);
   },
 });
 

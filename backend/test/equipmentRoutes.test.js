@@ -65,10 +65,34 @@ test('equipment asset-tag routes', { skip: !URL && 'TEST_DATABASE_URL not set' }
   await t.test('POST / stores a valid tag and preserves leading zeros', async () => {
     const res = await auth(request(app).post('/api/equipment'))
       .send({ name: 'New Scan', asset_tag: '0802' });
+    // Rename before asserting so a failed assertion still leaves the row
+    // covered by the ROUTETEST-% cleanup instead of leaking a KB-% row.
+    if (res.body?.equipment?.id) {
+      await pool.query(`UPDATE equipment SET qr_code = 'ROUTETEST-2' WHERE id = $1`,
+        [res.body.equipment.id]);
+    }
     assert.equal(res.status, 201);
     assert.equal(res.body.equipment.asset_tag, '0802');
-    await pool.query(`UPDATE equipment SET qr_code = 'ROUTETEST-2' WHERE id = $1`,
-      [res.body.equipment.id]);
+  });
+
+  await t.test('preserves both serial fields in ai_identification and never promotes the unverified one', async () => {
+    const identification = {
+      available: true, manufacturer: 'Blackmagic Design', model: 'ATEM 2 M/E',
+      name: null, serial_number: null, serial_number_unverified: 'GUESSED99',
+      label_text: 'ATEM 2 M/E', confidence: 'high', reasoning: 'test',
+    };
+    const res = await auth(request(app).post('/api/equipment'))
+      .send({ name: 'Serial Guard Row', asset_tag: '0850', ai_identification: identification });
+    if (res.body?.equipment?.id) {
+      await pool.query(`UPDATE equipment SET qr_code = 'ROUTETEST-5' WHERE id = $1`,
+        [res.body.equipment.id]);
+    }
+    assert.equal(res.status, 201);
+    assert.equal(res.body.equipment.serial_number, null,
+      'an unverified serial must never reach the serial_number column');
+    assert.equal(res.body.equipment.ai_identification.serial_number, null);
+    assert.equal(res.body.equipment.ai_identification.serial_number_unverified, 'GUESSED99',
+      'the unverified serial must be preserved for the technician to review');
   });
 
   await t.test('PATCH /:id/asset-tag binds a tag to existing equipment', async () => {
@@ -94,5 +118,17 @@ test('equipment asset-tag routes', { skip: !URL && 'TEST_DATABASE_URL not set' }
     const res = await auth(request(app).post('/api/equipment/identify'));
     assert.equal(res.status, 400);
     assert.match(res.body.error, /no photo/i);
+  });
+
+  await t.test('new routes reject unauthenticated requests', async () => {
+    const unauth = [
+      request(app).get('/api/equipment/asset-tag/0075'),
+      request(app).post('/api/equipment/identify'),
+      request(app).patch('/api/equipment/00000000-0000-0000-0000-000000000000/asset-tag').send({ asset_tag: '0075' }),
+    ];
+    for (const r of unauth) {
+      const res = await r;
+      assert.equal(res.status, 401, `expected 401, got ${res.status} for ${r.url}`);
+    }
   });
 });
