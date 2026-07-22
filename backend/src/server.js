@@ -89,13 +89,17 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`KB Backend running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+// Only listen when run directly. Required so tests can import the app
+// without binding a port or starting cron jobs.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`KB Backend running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
-  // Initialize email reminders
-  const { initializeReminders } = require('./services/reminderService');
-  initializeReminders();
-});
+    // Initialize email reminders
+    const { initializeReminders } = require('./services/reminderService');
+    initializeReminders();
+  });
+}
 
 module.exports = app;
