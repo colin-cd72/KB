@@ -20,6 +20,7 @@
 - **The dev machine has no local PostgreSQL.** `kb_test` lives on the server and is reached through an SSH tunnel: `ssh -f -N -L 15432:127.0.0.1:5432 kb`. `backend/.env.test` (gitignored) holds `TEST_DATABASE_URL` pointing at `127.0.0.1:15432/kb_test`. Both are already provisioned.
 - Tests that require a database read `TEST_DATABASE_URL` and **skip** when it is unset. **`TEST_DATABASE_URL` must point at the dedicated `kb_test` database, never at `DATABASE_URL`.** Task 1 Step 4 creates it. Never set `TEST_DATABASE_URL="$DATABASE_URL"`.
 - `supertest` may be added as a devDependency for HTTP-level route tests. It is an assertion library, not a test runner, so it does not conflict with the `node:test`-only rule above.
+- **Any `BEGIN`/`COMMIT`/`ROLLBACK` must run on a single client obtained from `pool.connect()`, released in a `finally`.** `pool.query()` does not pin a connection, so a transaction split across `pool.query()` calls may execute on different sessions and silently fail to roll back. This applies to every DB-backed test and to the backfill script.
 
 ---
 
@@ -111,43 +112,52 @@ test('asset_tag schema', { skip: !URL && 'TEST_DATABASE_URL not set' }, async (t
     ]);
   });
 
+  // A transaction MUST run on one checked-out client. pg's Pool routes each
+  // pool.query() to whichever client is free, so BEGIN/INSERT/ROLLBACK issued
+  // as separate pool.query() calls can land on different sessions — the
+  // rollback then rolls back nothing and test rows leak into kb_test.
   await t.test('partial unique index rejects duplicates but allows many nulls', async () => {
-    await pool.query('BEGIN');
+    const client = await pool.connect();
     try {
-      await pool.query(
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t1','TEST-1','9001')`
       );
       await assert.rejects(
-        () => pool.query(
+        () => client.query(
           `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t2','TEST-2','9001')`
         ),
         /duplicate key|unique/i
       );
-      await pool.query('ROLLBACK');
-      await pool.query('BEGIN');
-      await pool.query(
+      await client.query('ROLLBACK');
+
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t3','TEST-3',NULL)`
       );
-      await pool.query(
+      await client.query(
         `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t4','TEST-4',NULL)`
       );
+      await client.query('ROLLBACK');
     } finally {
-      await pool.query('ROLLBACK');
+      client.release();
     }
   });
 
   await t.test('leading zeros are preserved', async () => {
-    await pool.query('BEGIN');
+    const client = await pool.connect();
     try {
-      await pool.query(
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('t5','TEST-5','0075')`
       );
-      const { rows } = await pool.query(
+      const { rows } = await client.query(
         `SELECT asset_tag FROM equipment WHERE qr_code = 'TEST-5'`
       );
       assert.equal(rows[0].asset_tag, '0075');
+      await client.query('ROLLBACK');
     } finally {
-      await pool.query('ROLLBACK');
+      client.release();
     }
   });
 });
