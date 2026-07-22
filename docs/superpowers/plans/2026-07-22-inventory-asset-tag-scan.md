@@ -11,7 +11,8 @@
 ## Global Constraints
 
 - **Node's built-in test runner only.** `node --test`, `node:test` + `node:assert/strict`. Do not add Jest, Mocha, or Vitest to the backend.
-- **The test script must be exactly `node -r ./test-setup.js --test`** (bare `--test`, default discovery). `--test test/` fails on Node 22, and a shell glob `test/*.test.js` fails because npm on Windows runs scripts through cmd.exe. The env loader lives at `backend/test-setup.js`, deliberately OUTSIDE `backend/test/`, because Node executes every file inside a `test/` directory as a test.
+- **The test script must be exactly `node -r ./load-test-env.js --test`** (bare `--test`, default discovery). `--test test/` fails on Node 22, and a shell glob `test/*.test.js` fails because npm on Windows runs scripts through cmd.exe.
+- **The env loader is `backend/load-test-env.js`** — the filename matters. Node's default test discovery matches `**/test/**/*.js`, `**/*.test.js`, `**/*-test.js`, `**/*_test.js`, AND `**/test-*.js`. A loader placed in `test/`, or named `load-test-env.js`, is executed as a test file and inflates the count. `load-test-env.js` matches none of those patterns.
 - **Do not upgrade `@anthropic-ai/sdk`.** It is pinned at 0.24.3 and 17 call sites depend on it. Structured outputs (`output_config`) do not exist in this version — use forced tool use (`tool_choice: { type: 'tool', name: ... }`) for schema-guaranteed JSON.
 - **Model string is `claude-sonnet-5`** everywhere. `claude-sonnet-4-20250514` is retired and returns `not_found_error`.
 - **Never write an AI-proposed value to the database without explicit human confirmation.** This applies especially to `serial_number`.
@@ -64,7 +65,7 @@ exists on this machine (gitignored, points at `kb_test` through an SSH tunnel on
 port 15432). A preload module makes it available without every test file loading
 dotenv itself.
 
-Create `backend/test-setup.js` (outside `test/`, so Node's discovery does not run it as a test):
+Create `backend/load-test-env.js` (outside `test/`, so Node's discovery does not run it as a test):
 
 ```js
 // Loads TEST_DATABASE_URL from .env.test when present. Absent in CI or on a
@@ -81,7 +82,7 @@ if (fs.existsSync(envPath)) {
 In `backend/package.json`, add to `"scripts"`:
 
 ```json
-"test": "node -r ./test-setup.js --test"
+"test": "node -r ./load-test-env.js --test"
 ```
 
 - [ ] **Step 3: Write the failing test**
@@ -171,7 +172,7 @@ have already been provisioned — you do not need to create them. Confirm the
 connection is correct before running anything that writes:
 
 ```bash
-cd backend && node -r ./test-setup.js -e "
+cd backend && node -r ./load-test-env.js -e "
 const {Pool} = require('pg');
 const p = new Pool({connectionString: process.env.TEST_DATABASE_URL});
 p.query('SELECT current_database() db, count(*)::int n FROM equipment')
@@ -203,7 +204,7 @@ Expected: FAIL — `columns exist` returns `[]` because `add_asset_tag.sql` has 
 `psql` is not installed on this machine, so apply the SQL through `pg`:
 
 ```bash
-cd backend && node -r ./test-setup.js -e "
+cd backend && node -r ./load-test-env.js -e "
 const fs = require('fs');
 const {Pool} = require('pg');
 const p = new Pool({connectionString: process.env.TEST_DATABASE_URL});

@@ -8,7 +8,7 @@
     "dev": "nodemon src/server.js",
     "migrate": "node src/config/migrate.js",
     "seed": "node src/config/seed.js",
-    "test": "node -r ./setup.js --test"
+    "test": "node -r ./load-test-env.js --test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
