@@ -14,7 +14,11 @@ const TAG_PATTERN = /^\d{3,6}$/;
  * @returns {string|null} canonical digit string with leading zeros, or null
  */
 function normalizeAssetTag(raw) {
-  if (raw === null || raw === undefined) return null;
+  // Only strings and numbers can be tags. Everything else -> null.
+  // Without this, String(['0075']) joins to '0075' and a single-element
+  // array (which Express's qs parser produces for ?asset_tag[]=0075)
+  // would be accepted as a valid tag.
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
 
   // Excel prefixes a backtick or apostrophe to force text formatting.
   const cleaned = String(raw).trim().replace(/^[`']+/, '').trim();
