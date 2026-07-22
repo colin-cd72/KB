@@ -294,6 +294,19 @@ test('normalizeAssetTag', async (t) => {
   await t.test('accepts numeric input by coercing to string', () => {
     assert.equal(normalizeAssetTag(312), '312');
   });
+
+  await t.test('never throws on exotic input types, returns null', () => {
+    const exotic = [
+      true, false, NaN, Infinity, -1, 3.14, 0,
+      [], ['0075'], {}, { tag: '0075' },
+      Symbol('0075'), () => '0075', new Date(0), 0n,
+    ];
+    for (const v of exotic) {
+      const label = typeof v === 'symbol' ? 'Symbol' : String(typeof v);
+      assert.doesNotThrow(() => normalizeAssetTag(v), `threw on ${label}`);
+      assert.equal(normalizeAssetTag(v), null, `expected null for ${label}`);
+    }
+  });
 });
 ```
 
@@ -323,7 +336,12 @@ const TAG_PATTERN = /^\d{3,6}$/;
  * @returns {string|null} canonical digit string with leading zeros, or null
  */
 function normalizeAssetTag(raw) {
-  if (raw === null || raw === undefined) return null;
+  // Only strings and numbers can be tags. Everything else -> null.
+  // Without this, String(['0075']) joins to '0075' and a single-element
+  // array (which Express's qs parser produces for ?asset_tag[]=0075)
+  // would be accepted as a valid tag. This also makes the never-throws
+  // contract structural: a Symbol returns null here and never reaches String().
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
 
   // Excel prefixes a backtick or apostrophe to force text formatting.
   const cleaned = String(raw).trim().replace(/^[`']+/, '').trim();
