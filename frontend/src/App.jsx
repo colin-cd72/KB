@@ -20,6 +20,7 @@ import Articles from './pages/Articles';
 import ArticleDetail from './pages/ArticleDetail';
 import ArticleEditor from './pages/ArticleEditor';
 import ActivityLog from './pages/ActivityLog';
+import ScanAsset from './pages/ScanAsset';
 
 function ProtectedRoute({ children, roles }) {
   const { user, isAuthenticated } = useAuthStore();
@@ -93,6 +94,11 @@ function App() {
         } />
         <Route path="issues/:id" element={<IssueDetail />} />
         <Route path="manuals" element={<Manuals />} />
+        <Route path="equipment/scan" element={
+          <ProtectedRoute roles={['admin', 'technician']}>
+            <ScanAsset />
+          </ProtectedRoute>
+        } />
         <Route path="equipment" element={<Equipment />} />
         <Route path="todos" element={<Todos />} />
         <Route path="rmas" element={<RMAs />} />
