@@ -6,11 +6,12 @@
 
 **Architecture:** Three independent layers. (1) A schema migration plus a pure normalization module with no I/O. (2) A one-off backfill script joining the spreadsheet to `equipment` positionally, verified before it writes. (3) A new mobile route `/equipment/scan` backed by three new endpoints and a vision service, leaving `Equipment.jsx` untouched.
 
-**Tech Stack:** Node 20.20.2, Express 4, PostgreSQL (`pg`), `@anthropic-ai/sdk` 0.24.3, `xlsx` 0.18.5, multer; React 18, Vite 5, react-router-dom 6, TanStack Query 5, Tailwind, `react-hot-toast`, `lucide-react`. Tests use the built-in `node:test` runner — no new test dependency.
+**Tech Stack:** Node (server 20.20.2 / dev machine 22.21.1), Express 4, PostgreSQL (`pg`), `@anthropic-ai/sdk` 0.24.3, `xlsx` 0.18.5, multer; React 18, Vite 5, react-router-dom 6, TanStack Query 5, Tailwind, `react-hot-toast`, `lucide-react`. Tests use the built-in `node:test` runner — no new test dependency.
 
 ## Global Constraints
 
 - **Node's built-in test runner only.** `node --test`, `node:test` + `node:assert/strict`. Do not add Jest, Mocha, or Vitest to the backend.
+- **The test script must be exactly `node -r ./test-setup.js --test`** (bare `--test`, default discovery). `--test test/` fails on Node 22, and a shell glob `test/*.test.js` fails because npm on Windows runs scripts through cmd.exe. The env loader lives at `backend/test-setup.js`, deliberately OUTSIDE `backend/test/`, because Node executes every file inside a `test/` directory as a test.
 - **Do not upgrade `@anthropic-ai/sdk`.** It is pinned at 0.24.3 and 17 call sites depend on it. Structured outputs (`output_config`) do not exist in this version — use forced tool use (`tool_choice: { type: 'tool', name: ... }`) for schema-guaranteed JSON.
 - **Model string is `claude-sonnet-5`** everywhere. `claude-sonnet-4-20250514` is retired and returns `not_found_error`.
 - **Never write an AI-proposed value to the database without explicit human confirmation.** This applies especially to `serial_number`.
@@ -63,7 +64,7 @@ exists on this machine (gitignored, points at `kb_test` through an SSH tunnel on
 port 15432). A preload module makes it available without every test file loading
 dotenv itself.
 
-Create `backend/test/loadEnv.js`:
+Create `backend/test-setup.js` (outside `test/`, so Node's discovery does not run it as a test):
 
 ```js
 // Loads TEST_DATABASE_URL from .env.test when present. Absent in CI or on a
@@ -71,7 +72,7 @@ Create `backend/test/loadEnv.js`:
 const path = require('path');
 const fs = require('fs');
 
-const envPath = path.join(__dirname, '..', '.env.test');
+const envPath = path.join(__dirname, '.env.test');
 if (fs.existsSync(envPath)) {
   require('dotenv').config({ path: envPath });
 }
@@ -80,7 +81,7 @@ if (fs.existsSync(envPath)) {
 In `backend/package.json`, add to `"scripts"`:
 
 ```json
-"test": "node -r ./test/loadEnv.js --test test/"
+"test": "node -r ./test-setup.js --test"
 ```
 
 - [ ] **Step 3: Write the failing test**
@@ -170,7 +171,7 @@ have already been provisioned — you do not need to create them. Confirm the
 connection is correct before running anything that writes:
 
 ```bash
-cd backend && node -r ./test/loadEnv.js -e "
+cd backend && node -r ./test-setup.js -e "
 const {Pool} = require('pg');
 const p = new Pool({connectionString: process.env.TEST_DATABASE_URL});
 p.query('SELECT current_database() db, count(*)::int n FROM equipment')
@@ -202,7 +203,7 @@ Expected: FAIL — `columns exist` returns `[]` because `add_asset_tag.sql` has 
 `psql` is not installed on this machine, so apply the SQL through `pg`:
 
 ```bash
-cd backend && node -r ./test/loadEnv.js -e "
+cd backend && node -r ./test-setup.js -e "
 const fs = require('fs');
 const {Pool} = require('pg');
 const p = new Pool({connectionString: process.env.TEST_DATABASE_URL});
