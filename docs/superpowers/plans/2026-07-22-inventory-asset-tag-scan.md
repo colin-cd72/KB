@@ -641,14 +641,39 @@ module.exports = { readSheetTags, verifyPositionalJoin, partitionTags };
 Run: `cd backend && npm test -- --test-name-pattern="verifyPositionalJoin|partitionTags"`
 Expected: PASS — 6 subtests.
 
-- [ ] **Step 5: Dry-run against the real data**
+- [ ] **Step 5: Verify the abort path fires (this is the safety test)**
+
+The dev machine cannot reach production, and the `kb_test` database is empty.
+That is exactly the condition the join-verification guard exists to catch, so use
+it to prove the guard works. Point the script at `kb_test`:
 
 ```bash
-cd backend && node scripts/backfill-asset-tags.js \
-  --file "D:/Fat Brain/Business/TMRW Sports/Asset Management/TMRW ASSET MANAGEMENT.xlsx"
+cd backend
+export DATABASE_URL="$(node -r ./load-test-env.js -e 'process.stdout.write(process.env.TEST_DATABASE_URL)')"
+node scripts/backfill-asset-tags.js --file "D:/Fat Brain/Business/TMRW Sports/Asset Management/TMRW ASSET MANAGEMENT.xlsx"
+echo "exit code: $?"
 ```
 
-Expected: `Positional join: 2067/2067 (100.00%)`, `Clean (1:1): 374`, `Collisions deferred: 10 values / 23 rows`, and `DRY RUN`. **If the join is not 100%, stop and report — do not pass `--apply`.**
+Expected: a row-count mismatch (sheet 2067 vs kb_test 0), the line
+`ABORT: positional join is not exact. Nothing was written.`, and `exit code: 1`.
+
+This is the single most important behavior in this task. If the script reports
+success, exits 0, or attempts any write, STOP and report — the guard that
+protects 2,067 production rows is not working.
+
+Then confirm nothing was written despite the abort:
+
+```bash
+node -r ./load-test-env.js -e "
+const {Pool}=require('pg');const p=new Pool({connectionString:process.env.TEST_DATABASE_URL});
+p.query('SELECT count(*)::int n FROM equipment WHERE asset_tag IS NOT NULL').then(r=>{console.log('tagged rows:',r.rows[0].n);return p.end()});
+"
+```
+
+Expected: `tagged rows: 0`.
+
+The real dry run against production data (expecting `2067/2067`, `374` clean,
+`10` collisions) happens in Task 9, not here.
 
 - [ ] **Step 6: Commit**
 
