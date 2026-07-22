@@ -16,7 +16,8 @@
 - **Never write an AI-proposed value to the database without explicit human confirmation.** This applies especially to `serial_number`.
 - **Asset tags are stored verbatim as digit strings with leading zeros preserved** (`'0075'`, not `75`). Never cast to integer.
 - Existing route conventions: `authenticate` + `isViewer` for reads, `authenticate` + `isTechnician` for writes, from `../middleware/auth`. Validation via `express-validator`. DB access via `query` from `../config/database`.
-- Migrations are plain SQL files in `backend/migrations/`, applied manually with `psql`.
+- Migrations are plain SQL files in `backend/migrations/`. **`psql` is not installed on the dev machine** — apply SQL locally through `pg` in a `node -e` one-liner. `psql` is available on the server and may be used there (Task 9 only).
+- **The dev machine has no local PostgreSQL.** `kb_test` lives on the server and is reached through an SSH tunnel: `ssh -f -N -L 15432:127.0.0.1:5432 kb`. `backend/.env.test` (gitignored) holds `TEST_DATABASE_URL` pointing at `127.0.0.1:15432/kb_test`. Both are already provisioned.
 - Tests that require a database read `TEST_DATABASE_URL` and **skip** when it is unset. **`TEST_DATABASE_URL` must point at the dedicated `kb_test` database, never at `DATABASE_URL`.** Task 1 Step 4 creates it. Never set `TEST_DATABASE_URL="$DATABASE_URL"`.
 - `supertest` may be added as a devDependency for HTTP-level route tests. It is an assertion library, not a test runner, so it does not conflict with the `node:test`-only rule above.
 
@@ -54,12 +55,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS equipment_asset_tag_key
   ON equipment (asset_tag) WHERE asset_tag IS NOT NULL;
 ```
 
-- [ ] **Step 2: Add the test script**
+- [ ] **Step 2: Add the test script and env loader**
+
+DB-backed tests read `TEST_DATABASE_URL` from `backend/.env.test`, which already
+exists on this machine (gitignored, points at `kb_test` through an SSH tunnel on
+port 15432). A preload module makes it available without every test file loading
+dotenv itself.
+
+Create `backend/test/loadEnv.js`:
+
+```js
+// Loads TEST_DATABASE_URL from .env.test when present. Absent in CI or on a
+// fresh clone, in which case DB-backed tests skip rather than fail.
+const path = require('path');
+const fs = require('fs');
+
+const envPath = path.join(__dirname, '..', '.env.test');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+}
+```
 
 In `backend/package.json`, add to `"scripts"`:
 
 ```json
-"test": "node --test test/"
+"test": "node -r ./test/loadEnv.js --test test/"
 ```
 
 - [ ] **Step 3: Write the failing test**
@@ -133,29 +153,31 @@ test('asset_tag schema', { skip: !URL && 'TEST_DATABASE_URL not set' }, async (t
 });
 ```
 
-- [ ] **Step 4: Create the dedicated test database**
+- [ ] **Step 4: Verify you are pointed at the test database, not production**
 
-Tests must never touch production. Create `kb_test` with the same schema as the
-live database, using the existing migration entry point:
+The `kb_test` database, the SSH tunnel on port 15432, and `backend/.env.test`
+have already been provisioned — you do not need to create them. Confirm the
+connection is correct before running anything that writes:
 
 ```bash
-cd backend
-createdb kb_test 2>/dev/null || echo "kb_test already exists"
-
-# Derive the test URL from DATABASE_URL by swapping only the database name.
-export TEST_DATABASE_URL="$(node -e "
-  const u = new URL(process.env.DATABASE_URL);
-  u.pathname = '/kb_test';
-  console.log(u.toString());
-")"
-echo "TEST_DATABASE_URL -> ${TEST_DATABASE_URL##*/}"
-
-# Build the base schema, then apply this task's migration on top.
-DATABASE_URL="$TEST_DATABASE_URL" npm run migrate
+cd backend && node -r ./test/loadEnv.js -e "
+const {Pool} = require('pg');
+const p = new Pool({connectionString: process.env.TEST_DATABASE_URL});
+p.query('SELECT current_database() db, count(*)::int n FROM equipment')
+ .then(r => { console.log(r.rows[0]); return p.end(); });
+"
 ```
 
-Expected: `TEST_DATABASE_URL -> kb_test`, then migration output. **If `${TEST_DATABASE_URL##*/}`
-prints anything other than `kb_test`, stop — do not run the tests.**
+Expected: **`{ db: 'kb_test', n: 0 }`**.
+
+**STOP if `db` is anything other than `kb_test`, or if `n` is 2067** — 2067 rows
+means you are connected to production. Do not run the tests; report the problem.
+
+If the connection is refused, the SSH tunnel has dropped. Restart it with:
+
+```bash
+ssh -f -N -L 15432:127.0.0.1:5432 kb
+```
 
 - [ ] **Step 5: Run the test and verify it fails**
 
@@ -167,11 +189,20 @@ Expected: FAIL — `columns exist` returns `[]` because `add_asset_tag.sql` has 
 
 - [ ] **Step 6: Apply the migration to the test database**
 
+`psql` is not installed on this machine, so apply the SQL through `pg`:
+
 ```bash
-cd backend && psql "$TEST_DATABASE_URL" -f migrations/add_asset_tag.sql
+cd backend && node -r ./test/loadEnv.js -e "
+const fs = require('fs');
+const {Pool} = require('pg');
+const p = new Pool({connectionString: process.env.TEST_DATABASE_URL});
+p.query(fs.readFileSync('migrations/add_asset_tag.sql','utf8'))
+ .then(() => { console.log('migration applied'); return p.end(); })
+ .catch(e => { console.error(e.message); process.exit(1); });
+"
 ```
 
-Expected output: `ALTER TABLE` ×3, `CREATE INDEX`.
+Expected: `migration applied`.
 
 - [ ] **Step 7: Run the test and verify it passes**
 
