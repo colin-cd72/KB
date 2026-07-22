@@ -19,6 +19,8 @@
 - **Asset tags are stored verbatim as digit strings with leading zeros preserved** (`'0075'`, not `75`). Never cast to integer.
 - Existing route conventions: `authenticate` + `isViewer` for reads, `authenticate` + `isTechnician` for writes, from `../middleware/auth`. Validation via `express-validator`. DB access via `query` from `../config/database`.
 - Migrations are plain SQL files in `backend/migrations/`. **`psql` is not installed on the dev machine** — apply SQL locally through `pg` in a `node -e` one-liner. `psql` is available on the server and may be used there (Task 9 only).
+- **`backend/.env.test` must define BOTH `TEST_DATABASE_URL` and `JWT_SECRET`.** The route tests sign a JWT to exercise `authenticate`; without `JWT_SECRET` they fail with an opaque signing error. The file is gitignored, so a fresh clone must recreate it.
+- **`node:test` runs multiple `t.after()` hooks in registration order.** Register row cleanup BEFORE `pool.end()`, or cleanup runs against a closed pool, silently leaves test rows behind, and fails the outer test via `hookFailed`.
 - **The dev machine has no local PostgreSQL.** `kb_test` lives on the server and is reached through an SSH tunnel: `ssh -f -N -L 15432:127.0.0.1:5432 kb`. `backend/.env.test` (gitignored) holds `TEST_DATABASE_URL` pointing at `127.0.0.1:15432/kb_test`. Both are already provisioned.
 - Tests that require a database read `TEST_DATABASE_URL` and **skip** when it is unset. **`TEST_DATABASE_URL` must point at the dedicated `kb_test` database, never at `DATABASE_URL`.** Task 1 Step 4 creates it. Never set `TEST_DATABASE_URL="$DATABASE_URL"`.
 - `supertest` may be added as a devDependency for HTTP-level route tests. It is an assertion library, not a test runner, so it does not conflict with the `node:test`-only rule above.
@@ -993,7 +995,6 @@ test('equipment asset-tag routes', { skip: !URL && 'TEST_DATABASE_URL not set' }
   const app = require('../src/server');
 
   const pool = new Pool({ connectionString: URL });
-  t.after(() => pool.end());
 
   // A technician user is required by isTechnician; authenticate looks it up by id.
   const { rows: [user] } = await pool.query(
@@ -1005,10 +1006,13 @@ test('equipment asset-tag routes', { skip: !URL && 'TEST_DATABASE_URL not set' }
   const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
   const auth = (r) => r.set('Authorization', `Bearer ${token}`);
 
+  // node:test runs multiple t.after() hooks in REGISTRATION order, so the row
+  // cleanup (which needs a live pool) must be registered before pool.end().
   t.after(async () => {
     await pool.query(`DELETE FROM equipment WHERE qr_code LIKE 'ROUTETEST-%'`);
     await pool.query(`DELETE FROM users WHERE email = 'routetest@kb.local'`);
   });
+  t.after(() => pool.end());
 
   await t.test('GET /asset-tag/:tag rejects a non-tag with 400', async () => {
     const res = await auth(request(app).get('/api/equipment/asset-tag/N%2FA'));
