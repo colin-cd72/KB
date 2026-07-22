@@ -63,8 +63,18 @@ function verifyPositionalJoin(sheetRows, dbRows) {
   }
   const mismatches = [];
   for (let i = 0; i < sheetRows.length; i++) {
-    if (cell(sheetRows[i].model) !== cell(dbRows[i].model)) {
-      mismatches.push({ index: i, sheet: sheetRows[i].model, db: dbRows[i].model });
+    const sm = cell(sheetRows[i].model);
+    const dm = cell(dbRows[i].model);
+    if (sm !== dm) {
+      mismatches.push({ index: i, field: 'model', sheet: sheetRows[i].model, db: dbRows[i].model });
+      continue;
+    }
+    // Model alone is not discriminating - 95.5% of rows share a model with
+    // another row. Compare the mnemonic/name pair too, where both sides have one.
+    const sn = cell(sheetRows[i].mnemonic);
+    const dn = cell(dbRows[i].name);
+    if (sn && dn && sn !== dn) {
+      mismatches.push({ index: i, field: 'mnemonic', sheet: sn, db: dn });
     }
   }
   const total = sheetRows.length;
@@ -107,7 +117,7 @@ async function main() {
 
   try {
     const { rows: dbRows } = await pool.query(
-      `SELECT id, coalesce(model,'') AS model, asset_tag
+      `SELECT id, coalesce(model,'') AS model, coalesce(name,'') AS name, asset_tag
          FROM equipment ORDER BY created_at, id`
     );
 
@@ -144,6 +154,15 @@ async function main() {
     console.log(`Collisions deferred: ${collisions.length} values / ` +
                 `${collisions.reduce((n, c) => n + c.sheetRows.length, 0)} rows`);
 
+    const disagreeing = clean.filter((c) => c.existing !== null && c.existing !== c.tag);
+    if (disagreeing.length > 0) {
+      console.log(`\nWARNING: ${disagreeing.length} row(s) already carry a DIFFERENT tag than the sheet:`);
+      for (const d of disagreeing) {
+        console.log(`  sheet row ${d.sheetRow}: db has ${d.existing}, sheet says ${d.tag}`);
+      }
+      console.log('  These are NOT overwritten. Resolve by hand.');
+    }
+
     const reportPath = path.join(__dirname, '..', 'asset-tag-collisions.json');
     fs.writeFileSync(reportPath, JSON.stringify(collisions, null, 2));
     console.log(`Collision report:    ${reportPath}`);
@@ -156,12 +175,22 @@ async function main() {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      let updated = 0;
       for (const row of writable) {
-        await client.query('UPDATE equipment SET asset_tag = $1 WHERE id = $2 AND asset_tag IS NULL',
-          [row.tag, row.id]);
+        const res = await client.query(
+          'UPDATE equipment SET asset_tag = $1 WHERE id = $2 AND asset_tag IS NULL',
+          [row.tag, row.id]
+        );
+        updated += res.rowCount;
+      }
+      if (updated !== writable.length) {
+        throw new Error(
+          `Expected to write ${writable.length} tags but ${updated} rows were updated. ` +
+          `Rolling back - the database changed underneath this run.`
+        );
       }
       await client.query('COMMIT');
-      console.log(`\nWrote ${writable.length} asset tags.`);
+      console.log(`\nWrote ${updated} asset tags.`);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

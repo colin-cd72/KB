@@ -29,6 +29,21 @@ test('verifyPositionalJoin', async (t) => {
     assert.equal(r.rate, 0);
     assert.match(r.reason, /row count/i);
   });
+
+  await t.test('detects a mnemonic mismatch even when the model matches', () => {
+    const sheet = [{ model: 'ALIF2122R-US', mnemonic: 'KVMT-401.01' }];
+    const db = [{ model: 'ALIF2122R-US', name: 'KVMT-401.99' }];
+    const r = verifyPositionalJoin(sheet, db);
+    assert.equal(r.mismatches.length, 1);
+    assert.equal(r.mismatches[0].field, 'mnemonic');
+    assert.equal(r.rate, 0);
+  });
+
+  await t.test('does not flag a mismatch when one side has no mnemonic', () => {
+    const sheet = [{ model: 'X', mnemonic: '' }];
+    const db = [{ model: 'X', name: 'SOME-NAME' }];
+    assert.equal(verifyPositionalJoin(sheet, db).rate, 1);
+  });
 });
 
 test('partitionTags', async (t) => {
