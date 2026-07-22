@@ -27,13 +27,14 @@ export default function ScanAsset() {
   const [photoPath, setPhotoPath] = useState(null);
   const [bindTarget, setBindTarget] = useState(null);
   const [search, setSearch] = useState('');
+  const [found, setFound] = useState(null);
 
   // Look up the scanned tag. 404 means it is unassigned, which is the normal path.
   const lookup = useMutation({
     mutationFn: (t) => equipmentApi.getByAssetTag(t),
     onSuccess: (res) => {
-      toast.success('Tag already registered');
-      navigate(`/equipment?highlight=${res.data.equipment.id}`);
+      setFound(res.data.equipment);
+      setStage('found');
     },
     onError: (err) => {
       if (err.response?.status === 404) setStage('choose');
@@ -120,6 +121,11 @@ export default function ScanAsset() {
       ? <span className="ml-2 inline-flex items-center gap-1 text-xs text-purple-600"><Sparkles className="h-3 w-3" />AI</span>
       : null;
 
+  const resetAll = () => {
+    setStage('scan'); setAi(null); setPhotoPath(null); setForm({});
+    setBindTarget(null); setMode(null); setSearch(''); setTag(''); setFound(null);
+  };
+
   return (
     <div className="mx-auto max-w-lg p-4 pb-24">
       <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold">
@@ -174,6 +180,36 @@ export default function ScanAsset() {
         </div>
       )}
 
+      {stage === 'found' && found && (
+        <div className="space-y-3">
+          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-900">
+            Tag <strong>{tag}</strong> is registered.
+          </p>
+          <dl className="rounded-lg border p-3 text-sm">
+            <div className="flex justify-between py-1">
+              <dt className="text-gray-500">Name</dt><dd>{found.name || '(no name)'}</dd>
+            </div>
+            <div className="flex justify-between py-1">
+              <dt className="text-gray-500">Manufacturer</dt><dd>{found.manufacturer || '—'}</dd>
+            </div>
+            <div className="flex justify-between py-1">
+              <dt className="text-gray-500">Model</dt><dd>{found.model || '—'}</dd>
+            </div>
+            <div className="flex justify-between py-1">
+              <dt className="text-gray-500">Serial</dt>
+              <dd className="font-mono">{found.serial_number || '—'}</dd>
+            </div>
+            <div className="flex justify-between py-1">
+              <dt className="text-gray-500">Location</dt><dd>{found.location || '—'}</dd>
+            </div>
+          </dl>
+          <button onClick={resetAll}
+            className="flex w-full items-center justify-center gap-2 py-2 text-sm text-gray-500">
+            <X className="h-4 w-4" /> Start over
+          </button>
+        </div>
+      )}
+
       {stage === 'form' && (
         <div className="space-y-4">
           <div className="rounded-lg bg-gray-50 p-3 text-sm">
@@ -209,9 +245,14 @@ export default function ScanAsset() {
                 </p>
               )}
               {(ai.confidence === 'low' || ai.confidence === 'none') && (
-                <p className="mt-2 text-purple-900">
-                  Not pre-filled. Copy anything useful across yourself.
-                </p>
+                <div className="mt-2 rounded bg-purple-100 p-2">
+                  <p className="mb-1 text-purple-900">
+                    Not pre-filled. Copy anything useful across yourself.
+                  </p>
+                  {ai.manufacturer && <p>Manufacturer: <span className="font-mono">{ai.manufacturer}</span></p>}
+                  {ai.model && <p>Model: <span className="font-mono">{ai.model}</span></p>}
+                  {ai.name && <p>Name: <span className="font-mono">{ai.name}</span></p>}
+                </div>
               )}
             </div>
           )}
@@ -221,7 +262,8 @@ export default function ScanAsset() {
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <Search className="h-4 w-4" /> Find the asset
               </label>
-              <input value={search} onChange={(e) => setSearch(e.target.value)}
+              <input value={search}
+                onChange={(e) => { setSearch(e.target.value); setBindTarget(null); }}
                 placeholder={ai?.model || 'Search by name or model'}
                 className="w-full rounded-lg border border-gray-300 px-3 py-3" />
               <ul className="max-h-64 divide-y overflow-auto rounded-lg border">
@@ -240,6 +282,12 @@ export default function ScanAsset() {
                   </li>
                 ))}
               </ul>
+              {bindTarget && (
+                <p className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
+                  Selected: <strong>{bindTarget.name || '(no name)'}</strong>
+                  {bindTarget.model ? ` — ${bindTarget.model}` : ''}
+                </p>
+              )}
               <button disabled={!bindTarget || bind.isPending}
                 onClick={() => bind.mutate({ id: bindTarget.id, asset_tag: tag })}
                 className="w-full rounded-lg bg-indigo-600 py-3 text-white disabled:opacity-50">
@@ -271,9 +319,7 @@ export default function ScanAsset() {
             </div>
           )}
 
-          <button onClick={() => {
-              setStage('scan'); setAi(null); setPhotoPath(null); setForm({}); setBindTarget(null);
-            }}
+          <button onClick={resetAll}
             className="flex w-full items-center justify-center gap-2 py-2 text-sm text-gray-500">
             <X className="h-4 w-4" /> Start over
           </button>
