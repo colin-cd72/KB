@@ -134,7 +134,7 @@ async function main() {
       console.error('ABORT: positional join is not exact. Nothing was written.');
       if (check.reason) console.error('  ' + check.reason);
       for (const m of check.mismatches.slice(0, 10)) {
-        console.error(`  index ${m.index}: sheet=${JSON.stringify(m.sheet)} db=${JSON.stringify(m.db)}`);
+        console.error(`  index ${m.index} [${m.field}]: sheet=${JSON.stringify(m.sheet)} db=${JSON.stringify(m.db)}`);
       }
       process.exit(1);
     }
@@ -167,6 +167,33 @@ async function main() {
     fs.writeFileSync(reportPath, JSON.stringify(collisions, null, 2));
     console.log(`Collision report:    ${reportPath}`);
 
+    // A tag we intend to write may already sit on a DIFFERENT row - the scan UI
+    // can bind tags independently of this script. Without this check the apply
+    // hits the partial unique index mid-transaction and dies on a raw 23505,
+    // after the maintenance window has already been spent.
+    const wanted = writable.map((w) => w.tag);
+    let blocked = [];
+    if (wanted.length > 0) {
+      const { rows: taken } = await pool.query(
+        `SELECT id, asset_tag, coalesce(name,'') AS name
+           FROM equipment WHERE asset_tag = ANY($1::text[])`,
+        [wanted]
+      );
+      const byTag = new Map(taken.map((t) => [t.asset_tag, t]));
+      blocked = writable
+        .filter((w) => byTag.has(w.tag) && byTag.get(w.tag).id !== w.id)
+        .map((w) => ({ ...w, holder: byTag.get(w.tag) }));
+    }
+
+    if (blocked.length > 0) {
+      console.error(`\nABORT: ${blocked.length} tag(s) are already assigned to a DIFFERENT asset.`);
+      for (const b of blocked) {
+        console.error(`  sheet row ${b.sheetRow}: tag ${b.tag} is held by "${b.holder.name}" (${b.holder.id})`);
+      }
+      console.error('  Nothing was written. Resolve these by hand, then re-run.');
+      process.exit(1);
+    }
+
     if (!apply) {
       console.log('\nDRY RUN. Re-run with --apply to write.');
       return;
@@ -192,7 +219,9 @@ async function main() {
       await client.query('COMMIT');
       console.log(`\nWrote ${updated} asset tags.`);
     } catch (err) {
-      await client.query('ROLLBACK');
+      try { await client.query('ROLLBACK'); } catch (rollbackErr) {
+        console.error('ROLLBACK also failed:', rollbackErr.message);
+      }
       throw err;
     } finally {
       client.release();
