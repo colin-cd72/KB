@@ -253,7 +253,7 @@ function NewIssue() {
                 placeholder="Brief description of the problem"
               />
               {errors.title && (
-                <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
+                <p className="mt-1 text-sm text-danger-500">{errors.title.message}</p>
               )}
             </div>
 
@@ -272,7 +272,7 @@ function NewIssue() {
 - Steps to reproduce the problem"
               />
               {errors.description && (
-                <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>
+                <p className="mt-1 text-sm text-danger-500">{errors.description.message}</p>
               )}
             </div>
 
@@ -502,7 +502,7 @@ function NewIssue() {
                       toast.success('Great! Glad the AI assistant helped solve your problem.');
                       navigate('/issues');
                     }}
-                    className="w-full btn bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2"
+                    className="w-full btn btn-success flex items-center justify-center gap-2"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     This Solved My Problem
@@ -514,7 +514,7 @@ function NewIssue() {
               {similarIssues.length > 0 && (
                 <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-gray-50">
                   <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <CheckCircle2 className="w-4 h-4 text-success-500" />
                     Similar Resolved Issues
                   </div>
                   <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -531,7 +531,7 @@ function NewIssue() {
                               {issue.title}
                             </p>
                             {issue.solution && (
-                              <p className="text-xs text-green-600 mt-0.5 line-clamp-1">
+                              <p className="text-xs text-success-500 mt-0.5 line-clamp-1">
                                 {issue.solution.substring(0, 80)}...
                               </p>
                             )}
