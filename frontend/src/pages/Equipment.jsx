@@ -714,7 +714,7 @@ function Equipment() {
 
       {/* Add/Edit Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold">{editingId ? 'Edit' : 'Add'} Equipment</h2>
@@ -801,7 +801,7 @@ function Equipment() {
 
       {/* QR Code Modal */}
       {showQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl p-6 mx-4 text-center">
             <h2 className="text-lg font-semibold mb-4">{showQR.name}</h2>
             <div className="inline-block p-4 bg-dark-100 border rounded-lg">
@@ -817,7 +817,7 @@ function Equipment() {
 
       {/* Equipment Details Modal */}
       {selectedEquipment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col">
             {/* Header with Image */}
             <div className="flex items-start gap-4 px-6 py-4 border-b">
@@ -1160,7 +1160,7 @@ function Equipment() {
 
                   {/* Find Manual Online Modal */}
                   {showManualFinder && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
                       <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
                         <div className="flex items-center justify-between px-6 py-4 border-b">
                           <div className="flex items-center gap-3">
@@ -1304,7 +1304,7 @@ function Equipment() {
 
                   {/* Link Existing Manual Modal */}
                   {showLinkManual && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
                       <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
                         <div className="flex items-center justify-between px-6 py-4 border-b">
                           <div className="flex items-center gap-3">
@@ -1479,7 +1479,7 @@ function Equipment() {
 
       {/* Import Modal */}
       {showImport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">

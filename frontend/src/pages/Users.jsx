@@ -258,7 +258,7 @@ function Users() {
 
       {/* Add/Edit User Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-md mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold">{editingUser ? 'Edit User' : 'Add User'}</h2>
@@ -344,7 +344,7 @@ function Users() {
 
       {/* Reset Password Modal */}
       {showResetPassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
             <h2 className="text-lg font-semibold mb-4">Reset Password</h2>
             <p className="text-sm text-gray-500 mb-4">
