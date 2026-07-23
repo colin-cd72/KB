@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Node's built-in test runner only.** `node --test`, `node:test` + `node:assert/strict`. Do not add Jest, Mocha, or Vitest to the backend.
-- **The test script must be exactly `node -r ./load-test-env.js --test`** (bare `--test`, default discovery). `--test test/` fails on Node 22, and a shell glob `test/*.test.js` fails because npm on Windows runs scripts through cmd.exe.
+- **The test script must be exactly `node -r ./load-test-env.js --test --test-concurrency=1`**. The `--test-concurrency=1` serializes test files because every DB-backed test shares the one `kb_test` database (a test that briefly drops a shared index must not overlap another). Bare (bare `--test`, default discovery). `--test test/` fails on Node 22, and a shell glob `test/*.test.js` fails because npm on Windows runs scripts through cmd.exe.
 - **The env loader is `backend/load-test-env.js`** — the filename matters. Node's default test discovery matches `**/test/**/*.js`, `**/*.test.js`, `**/*-test.js`, `**/*_test.js`, AND `**/test-*.js`. A loader placed in `test/`, or named `load-test-env.js`, is executed as a test file and inflates the count. `load-test-env.js` matches none of those patterns.
 - **Do not upgrade `@anthropic-ai/sdk`.** It is pinned at 0.24.3 and 17 call sites depend on it. Structured outputs (`output_config`) do not exist in this version — use forced tool use (`tool_choice: { type: 'tool', name: ... }`) for schema-guaranteed JSON.
 - **Model string is `claude-sonnet-5`** everywhere. `claude-sonnet-4-20250514` is retired and returns `not_found_error`.
