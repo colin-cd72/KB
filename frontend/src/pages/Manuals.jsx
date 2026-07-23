@@ -155,8 +155,8 @@ function Manuals() {
             <div key={manual.id} className="card hover:shadow-md transition-shadow">
               <div className="p-4">
                 <div className="flex items-start gap-3">
-                  <div className="p-3 bg-red-100 rounded-lg flex-shrink-0">
-                    <FileText className="w-6 h-6 text-red-600" />
+                  <div className="p-3 bg-danger-100 rounded-lg flex-shrink-0">
+                    <FileText className="w-6 h-6 text-danger-600" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-gray-900 truncate">{manual.title}</h3>
@@ -197,10 +197,10 @@ function Manuals() {
                       onClick={() => {
                         if (confirm('Delete this manual?')) deleteManual.mutate(manual.id);
                       }}
-                      className="p-2 hover:bg-red-50 rounded-lg"
+                      className="p-2 hover:bg-danger-500/10 rounded-lg"
                       title="Delete"
                     >
-                      <Trash2 className="w-4 h-4 text-red-500" />
+                      <Trash2 className="w-4 h-4 text-danger-500" />
                     </button>
                   )}
                 </div>
