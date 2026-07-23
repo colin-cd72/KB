@@ -169,6 +169,35 @@ test('inventory issues routes', { skip: !URL && 'TEST_DATABASE_URL not set' }, a
     }
   });
 
+  await t.test('POST /resolve-collision returns 400 for a malformed keep_id instead of a 500', async () => {
+    const res = await auth(request(app).post('/api/inventory/resolve-collision'))
+      .send({ tag: '0900', keep_id: 'not-a-uuid' });
+
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /valid equipment id/i);
+  });
+
+  await t.test('GET /issues treats an empty-string asset_tag as untagged, not a collision', async () => {
+    const { rows: [blankTag] } = await pool.query(
+      `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('Blank Tag Row','INVTEST-BLANKTAG','') RETURNING id`
+    );
+
+    const res = await auth(request(app).get('/api/inventory/issues'));
+    assert.equal(res.status, 200);
+
+    const blankCollision = res.body.collisions.find(c => c.asset_tag === '' || c.asset_tag === null);
+    assert.equal(blankCollision, undefined, 'an empty-string tag must never form a collision group');
+
+    if (!res.body.untagged.truncated) {
+      assert.ok(
+        res.body.untagged.sample.some(r => r.id === blankTag.id),
+        'expected the empty-string-tag row to appear in the untagged sample'
+      );
+    } else {
+      assert.ok(res.body.untagged.count >= 1);
+    }
+  });
+
   await t.test('POST /resolve-collision returns 409 when keep_id does not hold the tag, and clears nothing', async () => {
     const { rows: [holder] } = await pool.query(
       `INSERT INTO equipment (name, qr_code, asset_tag) VALUES ('Holder','INVTEST-409-HOLDER','0902') RETURNING id`

@@ -7,11 +7,15 @@ const router = express.Router();
 // Detail lists are capped so a bad data day can't return an unbounded payload.
 const DETAIL_CAP = 200;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Surface data-quality problems in the active equipment set.
 router.get('/issues', authenticate, isViewer, async (req, res, next) => {
   try {
     // Asset tags held by more than one active row. There are only a
     // handful of these in practice, so every colliding tag is returned.
+    // An empty/whitespace tag is not a real tag (see untagged below) and
+    // must never form a collision group of its own.
     const collisionsResult = await query(
       `SELECT asset_tag,
               json_agg(
@@ -21,20 +25,22 @@ router.get('/issues', authenticate, isViewer, async (req, res, next) => {
                 ) ORDER BY id
               ) AS units
          FROM equipment
-        WHERE is_active = true AND asset_tag IS NOT NULL
+        WHERE is_active = true AND asset_tag IS NOT NULL AND btrim(asset_tag) <> ''
         GROUP BY asset_tag
        HAVING count(*) > 1
         ORDER BY asset_tag`
     );
 
-    // Active rows with no asset tag at all.
+    // Active rows with no usable asset tag. Production has no unique index
+    // on asset_tag yet, so an empty-string value is possible and must be
+    // treated the same as NULL here.
     const untaggedCount = await query(
-      `SELECT count(*) FROM equipment WHERE is_active = true AND asset_tag IS NULL`
+      `SELECT count(*) FROM equipment WHERE is_active = true AND (asset_tag IS NULL OR btrim(asset_tag) = '')`
     );
     const untaggedSample = await query(
       `SELECT id, name, model
          FROM equipment
-        WHERE is_active = true AND asset_tag IS NULL
+        WHERE is_active = true AND (asset_tag IS NULL OR btrim(asset_tag) = '')
         ORDER BY id
         LIMIT $1`,
       [DETAIL_CAP]
@@ -118,6 +124,10 @@ router.post('/resolve-collision', authenticate, isTechnician, async (req, res, n
     if (typeof tag !== 'string' || tag.trim() === '' ||
         typeof keepId !== 'string' || keepId.trim() === '') {
       return res.status(400).json({ error: 'tag and keep_id are required' });
+    }
+
+    if (!UUID_RE.test(keepId)) {
+      return res.status(400).json({ error: 'keep_id must be a valid equipment id' });
     }
 
     // Check-then-update inside one transaction so a concurrent resolution
