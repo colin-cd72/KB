@@ -138,7 +138,7 @@ export default function ScanAsset() {
             <>
               <BarcodeScanner onScan={handleScan} onError={handleScanError} />
               <button onClick={() => setScanning(false)}
-                className="w-full rounded-lg border border-gray-300 py-3 text-gray-700">
+                className="w-full btn btn-secondary py-3">
                 Cancel
               </button>
             </>
@@ -154,9 +154,9 @@ export default function ScanAsset() {
             <div className="flex gap-2">
               <input value={manualTag} onChange={(e) => setManualTag(e.target.value)}
                 inputMode="numeric" placeholder="0075"
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-3" />
+                className="input flex-1" />
               <button type="submit" disabled={lookup.isPending}
-                className="rounded-lg bg-gray-800 px-4 text-white disabled:opacity-50">
+                className="btn btn-primary px-4 disabled:opacity-50">
                 {lookup.isPending ? '…' : 'Go'}
               </button>
             </div>
@@ -265,7 +265,7 @@ export default function ScanAsset() {
               <input value={search}
                 onChange={(e) => { setSearch(e.target.value); setBindTarget(null); }}
                 placeholder={ai?.model || 'Search by name or model'}
-                className="w-full rounded-lg border border-gray-300 px-3 py-3" />
+                className="input w-full" />
               <ul className="max-h-64 divide-y overflow-auto rounded-lg border">
                 {(candidates.data?.data?.equipment || []).map((eq) => (
                   <li key={eq.id}>
@@ -303,7 +303,7 @@ export default function ScanAsset() {
                   </span>
                   <input value={form[key] || ''}
                     onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-3" />
+                    className="input w-full" />
                 </label>
               ))}
               <button disabled={!form.name || create.isPending}
