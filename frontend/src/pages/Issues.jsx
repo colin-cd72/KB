@@ -66,9 +66,9 @@ function Issues() {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'open': return <AlertCircle className="w-4 h-4 text-blue-500" />;
-      case 'in_progress': return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'resolved': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      case 'open': return <AlertCircle className="w-4 h-4 text-accent-500" />;
+      case 'in_progress': return <Clock className="w-4 h-4 text-warning-500" />;
+      case 'resolved': return <CheckCircle2 className="w-4 h-4 text-success-500" />;
       default: return <CheckCircle2 className="w-4 h-4 text-gray-400" />;
     }
   };
@@ -201,7 +201,7 @@ function Issues() {
                         </span>
                       )}
                       {issue.has_accepted_solution > 0 && (
-                        <span className="text-green-600 font-medium">Solved</span>
+                        <span className="text-success-500 font-medium">Solved</span>
                       )}
                     </div>
                   </div>
