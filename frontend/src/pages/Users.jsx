@@ -17,8 +17,8 @@ import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
 const roles = [
-  { value: 'admin', label: 'Admin', description: 'Full access to all features', icon: Shield, color: 'text-red-600' },
-  { value: 'technician', label: 'Technician', description: 'Can create and edit issues', icon: Edit, color: 'text-blue-600' },
+  { value: 'admin', label: 'Admin', description: 'Full access to all features', icon: Shield, color: 'text-danger-500' },
+  { value: 'technician', label: 'Technician', description: 'Can create and edit issues', icon: Edit, color: 'text-accent-500' },
   { value: 'viewer', label: 'Viewer', description: 'Read-only access', icon: Eye, color: 'text-gray-600' },
 ];
 
@@ -210,7 +210,7 @@ function Users() {
                       <td className="px-6 py-4">
                         <span className={clsx(
                           'badge',
-                          user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          user.is_active ? 'bg-success-100 text-success-500' : 'bg-danger-100 text-danger-600'
                         )}>
                           {user.is_active ? 'Active' : 'Disabled'}
                         </span>
@@ -240,10 +240,10 @@ function Users() {
                             onClick={() => {
                               if (confirm('Delete this user?')) deleteUser.mutate(user.id);
                             }}
-                            className="p-2 hover:bg-red-50 rounded-lg"
+                            className="p-2 hover:bg-danger-500/10 rounded-lg"
                             title="Delete"
                           >
-                            <Trash2 className="w-4 h-4 text-red-500" />
+                            <Trash2 className="w-4 h-4 text-danger-500" />
                           </button>
                         </div>
                       </td>
