@@ -283,7 +283,7 @@ function Search() {
 
         {/* AI Response */}
         {aiSearch.data && (
-          <div className="mt-6 p-4 bg-gradient-to-r from-primary-50 to-purple-50 rounded-lg border border-primary-200">
+          <div className="mt-6 p-4 bg-gradient-to-r from-primary-500/10 to-accent-500/10 rounded-lg border border-primary-500/30">
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-5 h-5 text-primary-600" />
               <span className="font-semibold text-primary-900">AI Response</span>
@@ -306,7 +306,7 @@ function Search() {
         )}
 
         {aiSearch.isError && (
-          <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg">
+          <div className="mt-4 p-4 bg-danger-500/10 text-danger-500 rounded-lg">
             Failed to get AI response. Please try again.
           </div>
         )}
