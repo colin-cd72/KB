@@ -14,6 +14,7 @@ const solutionRoutes = require('./routes/solutions');
 const manualRoutes = require('./routes/manuals');
 const categoryRoutes = require('./routes/categories');
 const equipmentRoutes = require('./routes/equipment');
+const inventoryRoutes = require('./routes/inventory');
 const searchRoutes = require('./routes/search');
 const dashboardRoutes = require('./routes/dashboard');
 const todoRoutes = require('./routes/todos');
@@ -67,6 +68,7 @@ app.use('/api/solutions', solutionRoutes);
 app.use('/api/manuals', manualRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/equipment', equipmentRoutes);
+app.use('/api/inventory', inventoryRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/todos', todoRoutes);
@@ -89,13 +91,17 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`KB Backend running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+// Only listen when run directly. Required so tests can import the app
+// without binding a port or starting cron jobs.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`KB Backend running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
-  // Initialize email reminders
-  const { initializeReminders } = require('./services/reminderService');
-  initializeReminders();
-});
+    // Initialize email reminders
+    const { initializeReminders } = require('./services/reminderService');
+    initializeReminders();
+  });
+}
 
 module.exports = app;

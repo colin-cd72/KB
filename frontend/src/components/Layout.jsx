@@ -24,7 +24,9 @@ import {
   Check,
   Loader2,
   FileText,
-  Activity
+  Activity,
+  ClipboardList,
+  ScanLine
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -40,6 +42,8 @@ const navigation = [
 ];
 
 const adminNavigation = [
+  { name: 'Inventory Issues', href: '/inventory-issues', icon: ClipboardList, roles: ['admin', 'technician'], description: 'Data quality & fixes' },
+  { name: 'Scan', href: '/equipment/scan', icon: ScanLine, roles: ['admin', 'technician'], description: 'Scan asset tags' },
   { name: 'Users', href: '/users', icon: Users, roles: ['admin'], description: 'User management' },
   { name: 'Activity Log', href: '/activity-log', icon: Activity, roles: ['admin'], description: 'System audit trail' },
 ];

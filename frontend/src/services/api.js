@@ -73,6 +73,13 @@ export const equipmentApi = {
   getAll: (params) => api.get('/equipment', { params }),
   getOne: (id) => api.get(`/equipment/${id}`),
   getByQR: (code) => api.get(`/equipment/qr/${code}`),
+  getByAssetTag: (tag) => api.get(`/equipment/asset-tag/${encodeURIComponent(tag)}`),
+  setAssetTag: (id, asset_tag, extra = {}) =>
+    api.patch(`/equipment/${id}/asset-tag`, { asset_tag, ...extra }),
+  identifyPhoto: (formData) => api.post('/equipment/identify', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  }),
   create: (data) => api.post('/equipment', data),
   update: (id, data) => api.put(`/equipment/${id}`, data),
   delete: (id) => api.delete(`/equipment/${id}`),
@@ -253,6 +260,11 @@ export const rmasApi = {
   getReports: (params) => api.get('/rmas/reports', { params }),
   getTracking: (id) => api.get(`/rmas/${id}/tracking`),
   checkTracking: (id) => api.post(`/rmas/${id}/check-tracking`),
+};
+
+export const inventoryApi = {
+  getIssues: () => api.get('/inventory/issues'),
+  resolveCollision: (tag, keep_id) => api.post('/inventory/resolve-collision', { tag, keep_id }),
 };
 
 export default api;

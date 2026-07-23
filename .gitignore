@@ -41,3 +41,5 @@ coverage/
 # Misc
 *.pem
 .cache/
+.env.test
+backend/asset-tag-collisions.json

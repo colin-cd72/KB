@@ -9,6 +9,36 @@ const { query } = require('../config/database');
 const { authenticate, isTechnician, isViewer, isAdmin } = require('../middleware/auth');
 const { suggestColumnMappings, searchEquipmentManual, matchManualToEquipment } = require('../services/claudeService');
 const { fetchEquipmentImage } = require('../services/imageService');
+const { identifyFromPhoto } = require('../services/visionService');
+const { normalizeAssetTag } = require('../lib/assetTag');
+
+// Photo uploads for AI identification are read into memory, then written to
+// disk so the saved asset can reference them. Mirrors the existing
+// import/preview -> import/execute pattern: the file lands on disk during
+// identification, but no database row references it until the technician saves.
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
+    if (ok) return cb(null, true);
+    // Without an explicit status this surfaces as a 500 and leaks err.stack.
+    const err = new Error('Only JPEG, PNG, or WebP images are accepted');
+    err.statusCode = 400;
+    return cb(err, false);
+  },
+});
+
+const EXT_BY_MIME = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+
+/** Write an uploaded asset photo to disk and return its public path. */
+function saveAssetPhoto(buffer, mimetype) {
+  const dir = path.join(__dirname, '../../uploads/equipment-photos');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const filename = `${uuidv4()}${EXT_BY_MIME[mimetype] || '.jpg'}`;
+  fs.writeFileSync(path.join(dir, filename), buffer);
+  return `/uploads/equipment-photos/${filename}`;
+}
 
 // Configure multer for Excel file uploads
 const storage = multer.diskStorage({
@@ -133,6 +163,79 @@ router.get('/qr/:code', authenticate, isViewer, async (req, res, next) => {
   }
 });
 
+// Look up equipment by asset tag. Mirrors the qr_code lookup above.
+router.get('/asset-tag/:tag', authenticate, isViewer, async (req, res, next) => {
+  try {
+    const tag = normalizeAssetTag(req.params.tag);
+    if (!tag) {
+      return res.status(400).json({ error: 'Not a valid asset tag', tag: req.params.tag });
+    }
+    const result = await query(
+      `SELECT e.*,
+              (SELECT COUNT(*) FROM issues WHERE equipment_id = e.id) as issue_count,
+              (SELECT COUNT(*) FROM issues WHERE equipment_id = e.id AND status IN ('open','in_progress')) as open_issue_count
+         FROM equipment e
+        WHERE e.asset_tag = $1`,
+      [tag]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No equipment with that asset tag', tag });
+    }
+    res.json({ equipment: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Identify equipment from a photo. Writes NO database row — the returned
+// values are suggestions the technician must confirm. The image itself is
+// stored so the eventual save can reference it.
+router.post('/identify', authenticate, isTechnician, photoUpload.single('photo'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No photo uploaded' });
+    const photo_path = saveAssetPhoto(req.file.buffer, req.file.mimetype);
+    const identification = await identifyFromPhoto(req.file.buffer, req.file.mimetype);
+    res.json({ identification, photo_path });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bind an asset tag to equipment that already exists.
+router.patch('/:id/asset-tag', authenticate, isTechnician, async (req, res, next) => {
+  try {
+    const tag = normalizeAssetTag(req.body.asset_tag);
+    if (!tag) return res.status(400).json({ error: 'Not a valid asset tag' });
+
+    const existing = await query('SELECT id, name FROM equipment WHERE asset_tag = $1', [tag]);
+    if (existing.rows.length > 0 && existing.rows[0].id !== req.params.id) {
+      return res.status(409).json({
+        error: 'That asset tag is already assigned',
+        conflict: existing.rows[0],
+      });
+    }
+
+    // asset_photo_path and ai_identification are optional; COALESCE leaves any
+    // existing value in place when the client omits them.
+    const result = await query(
+      `UPDATE equipment
+          SET asset_tag = $1,
+              asset_photo_path = COALESCE($2, asset_photo_path),
+              ai_identification = COALESCE($3::jsonb, ai_identification),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4 RETURNING *`,
+      [tag,
+       req.body.asset_photo_path || null,
+       req.body.ai_identification ? JSON.stringify(req.body.ai_identification) : null,
+       req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Equipment not found' });
+    res.json({ equipment: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get single equipment
 router.get('/:id', authenticate, isViewer, async (req, res, next) => {
   try {
@@ -193,15 +296,29 @@ router.post('/',
   async (req, res, next) => {
     try {
       const { name, model, serial_number, manufacturer, location, description } = req.body;
+      const assetTag = normalizeAssetTag(req.body.asset_tag);
+
+      if (req.body.asset_tag && !assetTag) {
+        return res.status(400).json({ error: 'Not a valid asset tag' });
+      }
+      if (assetTag) {
+        const dup = await query('SELECT id, name FROM equipment WHERE asset_tag = $1', [assetTag]);
+        if (dup.rows.length > 0) {
+          return res.status(409).json({ error: 'That asset tag is already assigned', conflict: dup.rows[0] });
+        }
+      }
 
       // Generate unique QR code
       const qrCode = `KB-${uuidv4().substring(0, 8).toUpperCase()}`;
 
       const result = await query(
-        `INSERT INTO equipment (name, model, serial_number, manufacturer, location, description, qr_code, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO equipment (name, model, serial_number, manufacturer, location, description, qr_code, created_by, asset_tag, asset_photo_path, ai_identification)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
-        [name, model, serial_number, manufacturer, location, description, qrCode, req.user.id]
+        [name, model, serial_number, manufacturer, location, description, qrCode, req.user.id,
+         assetTag,
+         req.body.asset_photo_path || null,
+         req.body.ai_identification ? JSON.stringify(req.body.ai_identification) : null]
       );
 
       res.status(201).json({ equipment: result.rows[0] });
