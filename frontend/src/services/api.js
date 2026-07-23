@@ -262,4 +262,9 @@ export const rmasApi = {
   checkTracking: (id) => api.post(`/rmas/${id}/check-tracking`),
 };
 
+export const inventoryApi = {
+  getIssues: () => api.get('/inventory/issues'),
+  resolveCollision: (tag, keep_id) => api.post('/inventory/resolve-collision', { tag, keep_id }),
+};
+
 export default api;
