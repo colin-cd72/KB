@@ -271,7 +271,7 @@ function InventoryIssues() {
             <ShieldCheck className="w-5 h-5 text-success-600 flex-shrink-0 mt-0.5" />
             <div className="text-sm">
               <p className="font-medium text-success-800">No tag collisions.</p>
-              <p className="text-success-700 mt-0.5">Every asset tag is unique — the duplicate-tag guard can now be turned on.</p>
+              <p className="text-success-700 mt-0.5">Every asset tag is unique. Duplicate-tag protection can now be locked in at the database level.</p>
             </div>
           </div>
         ) : (
