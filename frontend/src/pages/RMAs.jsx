@@ -616,7 +616,7 @@ function RMAs() {
                         className="w-full h-48 object-cover rounded-lg"
                       />
                       {analyzing && (
-                        <div className="absolute inset-0 bg-dark-900/50 rounded-lg flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
                           <div className="text-center text-white">
                             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
                             <p className="text-sm">Analyzing with AI...</p>
@@ -630,7 +630,7 @@ function RMAs() {
                           setAnalysisResult(null);
                           setAnalyzedImagePath(null);
                         }}
-                        className="absolute top-2 right-2 p-1.5 bg-dark-900/70 rounded-full text-white hover:bg-dark-900"
+                        className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full text-white hover:bg-dark-900"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -646,7 +646,7 @@ function RMAs() {
                         'w-full py-8 border-2 border-dashed rounded-xl cursor-pointer transition-colors',
                         isDragging
                           ? 'border-primary-500 bg-primary-50'
-                          : 'border-dark-300 hover:border-primary-500 hover:bg-white'
+                          : 'border-dark-300 hover:border-primary-500 hover:bg-dark-100'
                       )}
                     >
                       <Upload className={clsx(
@@ -775,7 +775,7 @@ function RMAs() {
                           placeholder="Type serial number or model to search..."
                         />
                         {showEquipmentSuggestions && equipmentSuggestions.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-dark-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          <div className="absolute z-10 w-full mt-1 bg-dark-100 border border-dark-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                             {equipmentSuggestions.map((eq) => (
                               <button
                                 key={eq.id}
@@ -794,7 +794,7 @@ function RMAs() {
                           </div>
                         )}
                         {showEquipmentSuggestions && equipmentSearch.length >= 2 && equipmentSuggestions.length === 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-dark-200 rounded-lg shadow-lg p-4 text-center text-dark-500">
+                          <div className="absolute z-10 w-full mt-1 bg-dark-100 border border-dark-200 rounded-lg shadow-lg p-4 text-center text-dark-500">
                             No equipment found
                           </div>
                         )}
@@ -840,7 +840,7 @@ function RMAs() {
                       <button
                         type="button"
                         onClick={() => selectContact(suggestedContact)}
-                        className="w-full text-left p-2 bg-white rounded border border-primary-200 hover:border-primary-400 transition-colors"
+                        className="w-full text-left p-2 bg-dark-100 rounded border border-primary-200 hover:border-primary-400 transition-colors"
                       >
                         <span className="font-medium text-dark-900">{suggestedContact.contact_name}</span>
                         {suggestedContact.contact_email && (
@@ -863,7 +863,7 @@ function RMAs() {
                         placeholder="Contact name"
                       />
                       {showContactSuggestions && contactSuggestions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-dark-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        <div className="absolute z-10 w-full mt-1 bg-dark-100 border border-dark-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                           {contactSuggestions.map((contact, idx) => (
                             <button
                               key={idx}
@@ -997,7 +997,7 @@ function RMAs() {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="p-2 text-dark-400 hover:text-primary-600 hover:bg-white rounded-lg"
+                          className="p-2 text-dark-400 hover:text-primary-600 hover:bg-dark-100 rounded-lg"
                           title="View source"
                         >
                           <ExternalLink className="w-4 h-4" />
@@ -1173,7 +1173,7 @@ function RMAs() {
                     </h4>
                     <div className="overflow-x-auto max-h-64">
                       <table className="w-full text-sm">
-                        <thead className="sticky top-0 bg-white">
+                        <thead className="sticky top-0 bg-dark-100">
                           <tr className="border-b border-dark-200">
                             <th className="text-left py-2 px-2">RMA #</th>
                             <th className="text-left py-2 px-2">Item</th>

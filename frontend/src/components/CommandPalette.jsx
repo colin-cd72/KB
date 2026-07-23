@@ -246,13 +246,13 @@ function CommandPalette({ isOpen, onClose }) {
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-dark-900/60 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Command Palette */}
       <div className="fixed top-[20%] left-1/2 -translate-x-1/2 w-full max-w-2xl px-4">
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden animate-fade-in">
+        <div className="bg-dark-100 rounded-2xl shadow-2xl overflow-hidden animate-fade-in">
           {/* Search Input */}
           <div className="flex items-center gap-3 px-4 py-4 border-b border-dark-100">
             <Search className="w-5 h-5 text-dark-400 flex-shrink-0" />
@@ -339,18 +339,18 @@ function CommandPalette({ isOpen, onClose }) {
           <div className="px-4 py-3 border-t border-dark-100 bg-dark-50 flex items-center justify-between text-xs text-dark-400">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-white rounded border border-dark-200">↑</kbd>
-                <kbd className="px-1.5 py-0.5 bg-white rounded border border-dark-200">↓</kbd>
+                <kbd className="px-1.5 py-0.5 bg-dark-100 rounded border border-dark-200">↑</kbd>
+                <kbd className="px-1.5 py-0.5 bg-dark-100 rounded border border-dark-200">↓</kbd>
                 Navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-white rounded border border-dark-200">↵</kbd>
+                <kbd className="px-1.5 py-0.5 bg-dark-100 rounded border border-dark-200">↵</kbd>
                 Select
               </span>
             </div>
             <span>
-              <kbd className="px-1.5 py-0.5 bg-white rounded border border-dark-200">⌘</kbd>
-              <kbd className="px-1.5 py-0.5 bg-white rounded border border-dark-200 ml-0.5">K</kbd>
+              <kbd className="px-1.5 py-0.5 bg-dark-100 rounded border border-dark-200">⌘</kbd>
+              <kbd className="px-1.5 py-0.5 bg-dark-100 rounded border border-dark-200 ml-0.5">K</kbd>
               to toggle
             </span>
           </div>

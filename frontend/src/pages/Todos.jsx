@@ -120,7 +120,7 @@ function SwipeableTodoItem({ todo, onComplete, onDelete, onEdit, onImageUpload, 
           transform: `translateX(${swipeOffset}px)`,
           transition: isSwiping ? 'none' : 'transform 0.2s ease-out'
         }}
-        className="relative bg-white"
+        className="relative bg-dark-100"
       >
         {children}
       </div>
@@ -291,7 +291,7 @@ function TodoCard({
                           e.stopPropagation();
                           onRemoveTag(todo.id, tag.id);
                         }}
-                        className="hover:bg-white/20 rounded-full p-0.5"
+                        className="hover:bg-dark-100/20 rounded-full p-0.5"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -467,7 +467,7 @@ function TodoCard({
                   <Tag className="w-4 h-4 text-gray-500" />
                 </button>
                 {showTagPicker && (
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-20 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-dark-100 rounded-lg shadow-lg border z-20 py-1">
                     {availableTags?.map(tag => (
                       <button
                         key={tag.id}
@@ -1346,7 +1346,7 @@ function Todos() {
       {canEdit && (
         <button
           onClick={() => setShowForm(true)}
-          className="fixed bottom-20 right-4 md:bottom-6 md:right-6 w-14 h-14 bg-primary-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-700 transition-colors z-40"
+          className="fixed bottom-20 right-4 md:bottom-6 md:right-6 w-14 h-14 bg-primary-600 text-dark-50 rounded-full shadow-lg flex items-center justify-center hover:bg-primary-700 transition-colors z-40"
         >
           <Plus className="w-7 h-7" />
         </button>
@@ -1355,8 +1355,8 @@ function Todos() {
       {/* Add/Edit Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
+          <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-dark-100">
               <h2 className="text-lg font-semibold">{editingTodo ? 'Edit Todo' : 'Add Todo'}</h2>
               <button onClick={resetForm} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
@@ -1472,7 +1472,7 @@ function Todos() {
                         placeholder="Type serial number or model to search..."
                       />
                       {showEquipmentSuggestions && equipmentSuggestions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        <div className="absolute z-10 w-full mt-1 bg-dark-100 border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           {equipmentSuggestions.map((eq) => (
                             <button
                               key={eq.id}
@@ -1491,7 +1491,7 @@ function Todos() {
                         </div>
                       )}
                       {showEquipmentSuggestions && equipmentSearch.length >= 2 && equipmentSuggestions.length === 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                        <div className="absolute z-10 w-full mt-1 bg-dark-100 border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
                           No equipment found
                         </div>
                       )}

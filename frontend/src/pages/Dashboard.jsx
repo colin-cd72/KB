@@ -208,7 +208,7 @@ function EquipmentFailuresWidget({ equipment }) {
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
                   return (
-                    <div className="bg-white p-2 border rounded shadow-lg text-sm">
+                    <div className="bg-dark-100 p-2 border rounded shadow-lg text-sm">
                       <p className="font-medium">{payload[0].payload.fullName}</p>
                       <p className="text-dark-600">{payload[0].value} issues</p>
                     </div>
@@ -339,16 +339,19 @@ function TrendsWidget({ trends }) {
       <div className="p-6">
         <ResponsiveContainer width="100%" height={250}>
           <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="week" tick={{ fontSize: 12 }} stroke="#6b7280" />
-            <YAxis tick={{ fontSize: 12 }} stroke="#6b7280" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#232B3A" />
+            <XAxis dataKey="week" tick={{ fontSize: 12 }} stroke="#828EA3" />
+            <YAxis tick={{ fontSize: 12 }} stroke="#828EA3" />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#fff',
-                border: '1px solid #e5e7eb',
+                backgroundColor: '#10141C',
+                border: '1px solid #232B3A',
                 borderRadius: '8px',
-                fontSize: '12px'
+                fontSize: '12px',
+                color: '#E7ECF4'
               }}
+              labelStyle={{ color: '#E7ECF4' }}
+              itemStyle={{ color: '#E7ECF4' }}
             />
             <Legend />
             <Line

@@ -90,13 +90,13 @@ function Login() {
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary-700 to-accent-700 p-12 relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl" />
+          <div className="absolute top-20 left-20 w-72 h-72 bg-dark-100 rounded-full blur-3xl" />
           <div className="absolute bottom-20 right-20 w-96 h-96 bg-accent-400 rounded-full blur-3xl" />
         </div>
 
         <div className="relative z-10 flex flex-col justify-between h-full w-full">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-dark-100/20 backdrop-blur-sm flex items-center justify-center">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -117,13 +117,13 @@ function Login() {
 
             <div className="flex items-center gap-6 pt-4">
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-dark-100/20 flex items-center justify-center">
                   <span className="text-white font-bold">100+</span>
                 </div>
                 <span className="text-sm text-white/70">Issues<br/>Resolved</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-dark-100/20 flex items-center justify-center">
                   <span className="text-white font-bold">50+</span>
                 </div>
                 <span className="text-sm text-white/70">Manuals<br/>Indexed</span>
@@ -138,7 +138,7 @@ function Login() {
       </div>
 
       {/* Right side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-gradient-to-br from-dark-50 via-white to-primary-50/30">
+      <div className="flex-1 flex items-center justify-center p-8 bg-gradient-to-br from-dark-50 via-dark-100 to-primary-50/30">
         <div className="w-full max-w-md space-y-8 animate-fade-in">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
@@ -228,7 +228,7 @@ function Login() {
       {/* Password Change Modal */}
       {showPasswordChange && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
+          <div className="bg-dark-100 rounded-2xl shadow-2xl w-full max-w-md animate-fade-in">
             <div className="p-6 border-b border-dark-100">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center">

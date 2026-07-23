@@ -30,22 +30,30 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Overview & stats' },
-  { name: 'Issues', href: '/issues', icon: AlertCircle, description: 'Problem tracking' },
-  { name: 'Todos', href: '/todos', icon: CheckSquare, description: 'Task management' },
-  { name: 'RMAs', href: '/rmas', icon: Package, description: 'Return tracking' },
-  { name: 'Manuals', href: '/manuals', icon: BookOpen, description: 'Documentation' },
-  { name: 'Articles', href: '/articles', icon: FileText, description: 'How-to guides' },
-  { name: 'Equipment', href: '/equipment', icon: Monitor, description: 'Asset registry' },
-  { name: 'Search', href: '/search', icon: Search, description: 'AI-powered search' },
-];
-
-const adminNavigation = [
-  { name: 'Inventory Issues', href: '/inventory-issues', icon: ClipboardList, roles: ['admin', 'technician'], description: 'Data quality & fixes' },
-  { name: 'Scan', href: '/equipment/scan', icon: ScanLine, roles: ['admin', 'technician'], description: 'Scan asset tags' },
-  { name: 'Users', href: '/users', icon: Users, roles: ['admin'], description: 'User management' },
-  { name: 'Activity Log', href: '/activity-log', icon: Activity, roles: ['admin'], description: 'System audit trail' },
+// Grouped by what people do, not by feature type.
+const navGroups = [
+  { label: 'Overview', items: [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Facility status' },
+  ]},
+  { label: 'Work', items: [
+    { name: 'Issues', href: '/issues', icon: AlertCircle, description: 'Problem tracking' },
+    { name: 'Tasks', href: '/todos', icon: CheckSquare, description: 'Assignments & reminders' },
+    { name: 'RMAs', href: '/rmas', icon: Package, description: 'Return tracking' },
+  ]},
+  { label: 'Knowledge', items: [
+    { name: 'Manuals', href: '/manuals', icon: BookOpen, description: 'Documentation' },
+    { name: 'Articles', href: '/articles', icon: FileText, description: 'How-to guides' },
+    { name: 'Search', href: '/search', icon: Search, description: 'AI-powered search' },
+  ]},
+  { label: 'Assets', items: [
+    { name: 'Equipment', href: '/equipment', icon: Monitor, description: 'Asset registry' },
+    { name: 'Scan', href: '/equipment/scan', icon: ScanLine, roles: ['admin', 'technician'], description: 'Scan asset tags' },
+    { name: 'Inventory Issues', href: '/inventory-issues', icon: ClipboardList, roles: ['admin', 'technician'], description: 'Data quality & fixes' },
+  ]},
+  { label: 'System', items: [
+    { name: 'Users', href: '/users', icon: Users, roles: ['admin'], description: 'User management' },
+    { name: 'Activity Log', href: '/activity-log', icon: Activity, roles: ['admin'], description: 'System audit trail' },
+  ]},
 ];
 
 function Layout() {
@@ -129,10 +137,13 @@ function Layout() {
     navigate('/login');
   };
 
-  const allNavigation = [
-    ...navigation,
-    ...adminNavigation.filter(item => !item.roles || item.roles.includes(user?.role))
-  ];
+  // Filter each group's items by role, then drop any group left empty.
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.roles || item.roles.includes(user?.role)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   const isActive = (href) => location.pathname === href || location.pathname.startsWith(href + '/');
 
@@ -144,22 +155,22 @@ function Layout() {
         sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       )}>
         <div
-          className="fixed inset-0 bg-dark-900/60 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
         <div className={clsx(
-          'fixed inset-y-0 left-0 w-72 bg-white shadow-2xl transform transition-transform duration-300',
+          'fixed inset-y-0 left-0 w-72 bg-dark-100 shadow-2xl transform transition-transform duration-300',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}>
           {/* Mobile sidebar header */}
           <div className="flex items-center justify-between h-20 px-6 border-b border-dark-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
-                <Sparkles className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center shadow-lg shadow-primary-500/25">
+                <Sparkles className="w-5 h-5 text-dark-50" />
               </div>
               <div>
-                <span className="font-bold text-dark-900">TMRW Sports</span>
-                <p className="text-xs text-dark-500">Knowledge Base</p>
+                <span className="font-bold text-dark-900 font-display tracking-tight">TMRW Sports</span>
+                <p className="text-xs text-dark-500 font-mono uppercase tracking-wider">Knowledge Base</p>
               </div>
             </div>
             <button
@@ -170,26 +181,33 @@ function Layout() {
             </button>
           </div>
 
-          {/* Mobile navigation */}
-          <nav className="p-4 space-y-1">
-            {allNavigation.map((item) => (
-              <Link
-                key={item.name}
-                to={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={clsx(
-                  'nav-item',
-                  isActive(item.href) ? 'nav-item-active' : 'nav-item-inactive'
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                <div className="flex-1">
-                  <span>{item.name}</span>
+          {/* Mobile navigation — grouped by purpose */}
+          <nav className="p-4 space-y-3">
+            {visibleGroups.map((group) => (
+              <div key={group.label}>
+                <div className="mb-1 px-4">
+                  <span className="text-[10px] font-semibold text-dark-500 uppercase tracking-[0.18em] font-mono">{group.label}</span>
                 </div>
-                {isActive(item.href) && (
-                  <ChevronRight className="w-4 h-4 opacity-50" />
-                )}
-              </Link>
+                {group.items.map((item) => (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={clsx(
+                      'nav-item',
+                      isActive(item.href) ? 'nav-item-active' : 'nav-item-inactive'
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <div className="flex-1">
+                      <span>{item.name}</span>
+                    </div>
+                    {isActive(item.href) && (
+                      <ChevronRight className="w-4 h-4 text-primary-500 opacity-70" />
+                    )}
+                  </Link>
+                ))}
+              </div>
             ))}
           </nav>
         </div>
@@ -200,51 +218,55 @@ function Layout() {
         {/* Logo */}
         <div className="sidebar-logo">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/25">
-              <Sparkles className="w-6 h-6 text-white" />
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 flex items-center justify-center shadow-lg shadow-primary-500/25">
+              <Sparkles className="w-6 h-6 text-dark-50" />
             </div>
             <div>
-              <span className="font-bold text-lg text-dark-900">TMRW Sports</span>
-              <p className="text-xs text-dark-500 font-medium">Knowledge Base</p>
+              <span className="font-bold text-lg text-dark-900 font-display tracking-tight">TMRW Sports</span>
+              <p className="text-xs text-dark-500 font-medium font-mono uppercase tracking-wider">Knowledge Base</p>
             </div>
           </div>
         </div>
 
-        {/* Navigation */}
+        {/* Navigation — grouped by purpose */}
         <nav className="sidebar-nav">
-          <div className="mb-2 px-4">
-            <span className="text-xs font-semibold text-dark-400 uppercase tracking-wider">Menu</span>
-          </div>
-          {allNavigation.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={clsx(
-                'nav-item group',
-                isActive(item.href) ? 'nav-item-active' : 'nav-item-inactive'
-              )}
-            >
-              <div className={clsx(
-                'w-9 h-9 rounded-lg flex items-center justify-center transition-colors',
-                isActive(item.href)
-                  ? 'bg-white/20'
-                  : 'bg-dark-100 group-hover:bg-dark-200'
-              )}>
-                <item.icon className="w-5 h-5" />
+          {visibleGroups.map((group) => (
+            <div key={group.label} className="mb-3">
+              <div className="mb-1 px-4">
+                <span className="text-[10px] font-semibold text-dark-500 uppercase tracking-[0.18em] font-mono">{group.label}</span>
               </div>
-              <div className="flex-1">
-                <span className="font-medium">{item.name}</span>
-                <p className={clsx(
-                  'text-xs',
-                  isActive(item.href) ? 'text-white/70' : 'text-dark-400'
-                )}>
-                  {item.description}
-                </p>
-              </div>
-              {isActive(item.href) && (
-                <ChevronRight className="w-4 h-4 opacity-50" />
-              )}
-            </Link>
+              {group.items.map((item) => (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={clsx(
+                    'nav-item group',
+                    isActive(item.href) ? 'nav-item-active' : 'nav-item-inactive'
+                  )}
+                >
+                  <div className={clsx(
+                    'w-9 h-9 rounded-lg flex items-center justify-center transition-colors',
+                    isActive(item.href)
+                      ? 'bg-primary-500/15'
+                      : 'bg-dark-200 group-hover:bg-dark-300'
+                  )}>
+                    <item.icon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">{item.name}</span>
+                    <p className={clsx(
+                      'text-xs truncate',
+                      isActive(item.href) ? 'text-dark-600' : 'text-dark-500'
+                    )}>
+                      {item.description}
+                    </p>
+                  </div>
+                  {isActive(item.href) && (
+                    <ChevronRight className="w-4 h-4 text-primary-500 opacity-70" />
+                  )}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -260,7 +282,7 @@ function Layout() {
             <div className={clsx(
               'w-9 h-9 rounded-lg flex items-center justify-center transition-colors',
               isActive('/settings')
-                ? 'bg-white/20'
+                ? 'bg-dark-100/20'
                 : 'bg-dark-100 group-hover:bg-dark-200'
             )}>
               <Settings className="w-5 h-5" />
@@ -317,7 +339,7 @@ function Layout() {
                   className="fixed inset-0 z-10"
                   onClick={() => setNotificationsOpen(false)}
                 />
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-dark-100 z-20 overflow-hidden">
+                <div className="absolute right-0 top-full mt-2 w-80 bg-dark-100 rounded-xl shadow-xl border border-dark-100 z-20 overflow-hidden">
                   <div className="px-4 py-3 border-b border-dark-100 flex items-center justify-between">
                     <h3 className="font-semibold text-dark-900">Notifications</h3>
                     {unreadCount > 0 && (
