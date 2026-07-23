@@ -29,7 +29,10 @@ fi
 # Check if frontend changed
 if git diff HEAD~1 --name-only | grep -q "frontend/"; then
     echo "Building frontend..."
-    cd frontend && npm install && npm run build && cd ..
+    # --include=dev is required: vite (the build tool) is a devDependency, and
+    # the server runs with NODE_ENV=production, so a bare `npm install` skips it
+    # and `npm run build` fails with "vite: not found".
+    cd frontend && npm install --include=dev && npm run build && cd ..
 fi
 
 # Restart backend with PM2. The process is named "kb" (not "kb-backend");
