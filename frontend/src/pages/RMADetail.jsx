@@ -1041,11 +1041,11 @@ function RMADetail() {
               <div className="rma-notes-compact">
                 {rma.notes.slice(0, 3).map((note, idx) => (
                   <div key={idx}>
-                    <span style={{ color: '#666' }}>{note.user_name} ({new Date(note.created_at).toLocaleDateString()}):</span> {note.content}
+                    <span style={{ color: '#828EA3' }}>{note.user_name} ({new Date(note.created_at).toLocaleDateString()}):</span> {note.content}
                   </div>
                 ))}
                 {rma.notes.length > 3 && (
-                  <div style={{ color: '#999', fontStyle: 'italic' }}>+ {rma.notes.length - 3} more notes</div>
+                  <div style={{ color: '#5A6577', fontStyle: 'italic' }}>+ {rma.notes.length - 3} more notes</div>
                 )}
               </div>
             </div>

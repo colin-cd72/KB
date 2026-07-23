@@ -67,7 +67,7 @@ function Settings() {
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
-  const [newCategory, setNewCategory] = useState({ name: '', color: '#3B82F6', description: '' });
+  const [newCategory, setNewCategory] = useState({ name: '', color: '#4EA8FF', description: '' });
   const [showNewCategory, setShowNewCategory] = useState(false);
 
   // Email Settings state (admin)
@@ -209,7 +209,7 @@ function Settings() {
     }
     try {
       await categoriesApi.create(newCategory);
-      setNewCategory({ name: '', color: '#3B82F6', description: '' });
+      setNewCategory({ name: '', color: '#4EA8FF', description: '' });
       setShowNewCategory(false);
       loadCategories();
       toast.success('Category created');
@@ -775,7 +775,7 @@ function Settings() {
                         <button
                           onClick={() => {
                             setShowNewCategory(false);
-                            setNewCategory({ name: '', color: '#3B82F6', description: '' });
+                            setNewCategory({ name: '', color: '#4EA8FF', description: '' });
                           }}
                           className="text-primary-500 hover:text-primary-700"
                         >
@@ -864,13 +864,13 @@ function Settings() {
                                   <div className="flex gap-2">
                                     <input
                                       type="color"
-                                      value={editingCategory.color || '#3B82F6'}
+                                      value={editingCategory.color || '#4EA8FF'}
                                       onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
                                       className="w-12 h-10 rounded cursor-pointer"
                                     />
                                     <input
                                       type="text"
-                                      value={editingCategory.color || '#3B82F6'}
+                                      value={editingCategory.color || '#4EA8FF'}
                                       onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
                                       className="input flex-1 font-mono"
                                     />
@@ -907,7 +907,7 @@ function Settings() {
                               <div className="flex items-center gap-3">
                                 <div
                                   className="w-4 h-4 rounded"
-                                  style={{ backgroundColor: category.color || '#3B82F6' }}
+                                  style={{ backgroundColor: category.color || '#4EA8FF' }}
                                 />
                                 <div>
                                   <p className="font-medium text-dark-900">{category.name}</p>
