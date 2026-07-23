@@ -194,8 +194,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Policy for this page (decided, not open):**
 - **Category / stat icon gradients** (L94–532: `from-orange-400 to-orange-600`, red, purple, blue, indigo, cyan …): collapse to the restrained palette. Use a **semantic** token where the tile has status meaning — issues/critical → `from-danger-400 to-danger-600`, resolved/ok → `from-success-400 to-success-600`, warnings/pending → `from-warning-400 to-warning-600`, info/counts → `from-accent-400 to-accent-600`. For any remaining brand-only/neutral tile, use `from-primary-400 to-primary-600` (matches `.avatar` / `.feature-card-icon`). Do **not** keep orange/purple/indigo/cyan.
 - **Carrier badges** (L406–409: usps/ups/fedex/dhl per-brand colors): drop per-brand color; render as a neutral instrument pill — `bg-dark-200 text-dark-700 border border-dark-400 font-mono`. This reads as a control-room readout and avoids six off-palette hues.
+- **Recharts series hexes** — map raw hexes to palette hexes: `#ef4444` → `#FF4646` (tally), `#f59e0b` → `#FFB020` (amber), `#22c55e` → `#12C489` (signal), category default `#8b5cf6` → `#4EA8FF` (accent); tracking-age thresholds `#16a34a` → `#17E6A0`, `#d97706` → `#FFB020`, `#dc2626` → `#FF4646`. **KEEP** the already-themed neutrals `#232B3A` (grid), `#828EA3` (axis), `#10141C` (tooltip bg), `#E7ECF4` (tooltip text) — do not touch them.
 
-- [ ] **Step 1: Apply the gradient collapse and carrier-pill changes per the policy above.**
+- [ ] **Step 1: Apply the gradient collapse, carrier-pill, and chart-hex changes per the policy above.**
 - [ ] **Step 2: Build.** `cd frontend && npm run build` — Expected: exits 0.
 - [ ] **Step 3: Visual check.** Open `/` (Dashboard). Confirm every icon gradient is green/red/amber/blue only (no orange/purple/indigo/cyan), carrier badges are neutral mono pills, and the page reads as one restrained control-room surface. This is the highest-judgment page — look carefully.
 - [ ] **Step 4: Commit.**
@@ -450,26 +451,35 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 15: Verify-clean pages (no commit expected)
+### Task 15: Settings default color + RMADetail note grays + verify-clean pages
 
-**Files (inspect only):**
-- `frontend/src/pages/RMADetail.jsx`
-- `frontend/src/pages/RMAs.jsx`
-- `frontend/src/pages/Login.jsx`
-- `frontend/src/pages/Settings.jsx`
-- `frontend/src/components/InstallPrompt.jsx`
+**Files:**
+- Modify: `frontend/src/pages/Settings.jsx` (default category color hex)
+- Modify: `frontend/src/pages/RMADetail.jsx` (on-screen note grays only)
+- Inspect only: `frontend/src/pages/RMAs.jsx`, `frontend/src/pages/Login.jsx`, `frontend/src/components/InstallPrompt.jsx`
 
-These showed no raw-hue matches (their earlier broad-grep hits were `text-white` on colored buttons and intentional gradient hex). Confirm they render correctly and need no change.
+**Settings.jsx** — `#3B82F6` is the *default category color* (a data default users can override via a color picker). Make it on-brand: replace `'#3B82F6'` → `'#4EA8FF'` (info-blue accent) at L70, L212, L778, and the fallback `editingCategory.color || '#3B82F6'` (L867, L873) and `category.color || '#3B82F6'` (L910). This changes only the default new categories receive; existing saved colors are untouched.
 
-- [ ] **Step 1: Re-grep to confirm no raw hues remain.**
+**RMADetail.jsx** — the hexes at L892–L908 live inside the print `<style>` block (`.rma-header`, `.rma-checkbox`, etc.) — **KEEP them; they are print labels.** Only the two on-screen note-metadata inline styles change: L1044 `color: '#666'` → `color: '#828EA3'` (dark-600), L1048 `color: '#999'` → `color: '#5A6577'` (dark-500). Leave `#f5f5f5` at L918 if it is inside the print section; change it to `#10141C` only if it renders on screen (verify in the visual check).
+
+- [ ] **Step 1: Apply the Settings default-color and RMADetail note-gray changes above.**
+- [ ] **Step 2: Re-grep the inspect-only files to confirm no real raw-hue leftovers.**
 
 ```bash
-cd frontend && grep -rnE '(bg|text|border|ring|from|to|via|hover:bg|hover:text)-(blue|green|red|yellow|indigo|orange|purple|amber|emerald|teal|cyan|sky|violet|rose|lime|pink)-[0-9]{2,3}|bg-white|text-black' src/pages/RMADetail.jsx src/pages/RMAs.jsx src/pages/Login.jsx src/pages/Settings.jsx src/components/InstallPrompt.jsx
+cd frontend && grep -rnE '(bg|text|border|ring|from|to|via|hover:bg|hover:text)-(blue|green|red|yellow|indigo|orange|purple|amber|emerald|teal|cyan|sky|violet|rose|lime|pink)-[0-9]{2,3}|bg-white|text-black' src/pages/RMAs.jsx src/pages/Login.jsx src/components/InstallPrompt.jsx
 ```
-Expected: no output (or only intentional matches you then fold into a commit per the mapping).
+Expected: no output (Login's `text-white` sits on a branded gradient hero — that is intentional; confirm visually).
 
-- [ ] **Step 2: Visual check.** Open `/rmas`, an RMA detail, `/login`, `/settings`. Confirm each renders as correct control-room dark with no pale boxes or off-palette hues.
-- [ ] **Step 3:** If any real leftover is found, apply the mapping and commit that file individually (message: `Sweep <File> onto control-room tokens`). Otherwise, no commit.
+- [ ] **Step 3: Build.** `cd frontend && npm run build` — Expected: exits 0.
+- [ ] **Step 4: Visual check (controller-driven).** Screenshot `/settings`, an RMA detail, `/rmas`, `/login`. Confirm: Settings category-color default swatch is info-blue; RMA detail on-screen notes are muted control-room gray (print preview unaffected); Login hero reads as intended; no pale boxes on `/rmas`.
+- [ ] **Step 5: Commit** (Settings + RMADetail only; inspect-only files produce no commit).
+
+```bash
+git add frontend/src/pages/Settings.jsx frontend/src/pages/RMADetail.jsx
+git commit -m "Sweep Settings default color + RMADetail note grays onto control-room tokens
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -483,6 +493,13 @@ Expected: no output (or only intentional matches you then fold into a commit per
 cd frontend && grep -rnE '(bg|text|border|ring|from|to|via|hover:bg|hover:text)-(blue|green|red|yellow|indigo|orange|purple|amber|emerald|teal|cyan|sky|violet|rose|lime|pink)-[0-9]{2,3}|bg-white|text-black' src/
 ```
 Expected: only intentional survivors (documented gradient hex is separate; this pattern excludes hex). Any real leftover → fix + commit that file, then re-run.
+
+Also confirm no off-palette inline hex remains (Recharts/inline styles). Palette hexes that are CORRECT to keep: `#17E6A0 #12C489 #4EA8FF #FFB020 #FF4646 #0A0D12 #10141C #171D28 #232B3A #323C4F #5A6577 #828EA3 #A9B4C6 #C9D2E0 #E7ECF4`, plus RMADetail's print-block grays (`#000 #ccc #999 #666 #f5f5f5`). Anything else (e.g. `#ef4444 #f59e0b #22c55e #8b5cf6 #3B82F6 #16a34a #d97706 #dc2626`) is a leftover:
+
+```bash
+cd frontend && grep -rnE '#(ef4444|f59e0b|22c55e|8b5cf6|3B82F6|16a34a|d97706|dc2626|0284c7|3b82f6)' src/
+```
+Expected: no output.
 
 - [ ] **Step 2: Final build.** `cd frontend && npm run build` — Expected: exits 0.
 
