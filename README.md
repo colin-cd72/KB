@@ -1,6 +1,6 @@
-# Knowledge Base System
+# TMRW Sports — Knowledge Base
 
-A comprehensive troubleshooting knowledge base with AI-powered search, user manual repository, and equipment tracking.
+A troubleshooting knowledge base and equipment registry for live-broadcast / AV engineering: document problems and fixes, search manuals with AI, and track every asset in the facility.
 
 **Live URL:** https://kb.4tmrw.net
 **Port:** 5105
@@ -9,18 +9,31 @@ A comprehensive troubleshooting knowledge base with AI-powered search, user manu
 
 - **Issue Tracking:** Document problems with descriptions, priorities, and categories
 - **Solutions Management:** Rate and accept solutions with version history
+- **Tasks:** Assignments with email notifications, subtasks, and tags
+- **RMAs:** Track returns and shipments with status and tracking
 - **User Manual Repository:** Upload PDFs with automatic text extraction for AI search
+- **Articles:** How-to guides and internal documentation
 - **AI-Powered Search:** Claude-powered intelligent search through manuals and issues
-- **Equipment Registry:** Track equipment with QR codes for quick issue lookup
+- **Equipment Registry:** Track 2,000+ assets with QR codes for quick issue lookup
+- **Asset Tags & Scanning:** Mobile scan flow — scan a barcode, photograph the unit, and Claude vision pre-populates make/model/serial for human confirmation before saving
+- **Inventory Issues:** Triage dashboard for data-quality problems — tag collisions, duplicate serials, blank names, untagged and missing-serial assets — with in-place fixes
 - **User Roles:** Admin, Technician, and Viewer access levels
 - **Dashboard & Analytics:** Monitor issue trends and resolution times
+
+## Design
+
+A "control-room" visual language drawn from the broadcast world it serves: a dark control-surface UI, a signal-green accent, broadcast-semantic status (tally red for critical, amber for warning), and monospace instrument-style readouts for technical identifiers (asset tags, serials, model numbers).
 
 ## Tech Stack
 
 - **Backend:** Node.js + Express
-- **Frontend:** React + Tailwind CSS
+- **Frontend:** React + Vite + Tailwind CSS
 - **Database:** PostgreSQL
-- **AI:** Claude API (Anthropic)
+- **AI:** Claude API (Anthropic) — model `claude-sonnet-5`, used for search, solution suggestions, product-image lookup, and vision-based equipment identification
+
+## Deployment
+
+Pushes to `main` auto-deploy via a GitHub webhook that runs `deploy.sh` (pulls, installs, builds the frontend with dev dependencies, and restarts the `kb` PM2 process).
 
 ## Quick Start
 
