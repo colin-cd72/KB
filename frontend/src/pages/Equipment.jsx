@@ -715,7 +715,7 @@ function Equipment() {
       {/* Add/Edit Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+          <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold">{editingId ? 'Edit' : 'Add'} Equipment</h2>
               <button onClick={resetForm} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -802,9 +802,9 @@ function Equipment() {
       {/* QR Code Modal */}
       {showQR && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-          <div className="bg-white rounded-xl shadow-xl p-6 mx-4 text-center">
+          <div className="bg-dark-100 rounded-xl shadow-xl p-6 mx-4 text-center">
             <h2 className="text-lg font-semibold mb-4">{showQR.name}</h2>
-            <div className="inline-block p-4 bg-white border rounded-lg">
+            <div className="inline-block p-4 bg-dark-100 border rounded-lg">
               <QRCodeSVG value={showQR.qr_code} size={200} />
             </div>
             <p className="mt-4 text-sm text-gray-500 font-mono">{showQR.qr_code}</p>
@@ -818,7 +818,7 @@ function Equipment() {
       {/* Equipment Details Modal */}
       {selectedEquipment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col">
+          <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col">
             {/* Header with Image */}
             <div className="flex items-start gap-4 px-6 py-4 border-b">
               {/* Equipment Image or Placeholder */}
@@ -870,7 +870,7 @@ function Equipment() {
                     <button
                       onClick={() => handleFetchImage(selectedEquipment.id)}
                       disabled={fetchingImage}
-                      className="p-1.5 bg-primary-600 text-white rounded-full hover:bg-primary-700 shadow-lg"
+                      className="p-1.5 bg-primary-600 text-dark-50 rounded-full hover:bg-primary-700 shadow-lg"
                       title="Auto-fetch from web"
                     >
                       {fetchingImage ? (
@@ -1161,7 +1161,7 @@ function Equipment() {
                   {/* Find Manual Online Modal */}
                   {showManualFinder && (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50">
-                      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+                      <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
                         <div className="flex items-center justify-between px-6 py-4 border-b">
                           <div className="flex items-center gap-3">
                             <Globe className="w-5 h-5 text-primary-600" />
@@ -1305,7 +1305,7 @@ function Equipment() {
                   {/* Link Existing Manual Modal */}
                   {showLinkManual && (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50">
-                      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+                      <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
                         <div className="flex items-center justify-between px-6 py-4 border-b">
                           <div className="flex items-center gap-3">
                             <Link2 className="w-5 h-5 text-primary-600" />
@@ -1393,7 +1393,7 @@ function Equipment() {
                                         <button
                                           key={manual.id}
                                           onClick={() => handleLinkManual(selectedEquipment.id, manual.id)}
-                                          className="w-full p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition-colors flex items-center justify-between"
+                                          className="w-full p-3 bg-dark-100 border border-gray-200 rounded-lg hover:bg-gray-50 text-left transition-colors flex items-center justify-between"
                                         >
                                           <div>
                                             <p className="text-sm font-medium text-gray-900">{manual.title}</p>
@@ -1480,7 +1480,7 @@ function Equipment() {
       {/* Import Modal */}
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
+          <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <div className="flex items-center gap-3">

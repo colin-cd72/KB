@@ -486,7 +486,7 @@ function IssueDetail() {
                       <button
                         onClick={() => handleAnalyzeImage(attachment)}
                         disabled={analyzingImage === attachment.id}
-                        className="p-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                        className="p-1.5 bg-primary-600 text-dark-50 rounded-lg hover:bg-primary-700"
                         title="Analyze with AI"
                       >
                         {analyzingImage === attachment.id ? (
@@ -688,7 +688,7 @@ function IssueDetail() {
               </div>
               <div className="flex items-center gap-2">
                 {chatMessages.length > 0 && (
-                  <span className="px-2 py-0.5 bg-primary-600 text-white text-xs rounded-full">
+                  <span className="px-2 py-0.5 bg-primary-600 text-dark-50 text-xs rounded-full">
                     {chatMessages.length}
                   </span>
                 )}
@@ -737,7 +737,7 @@ function IssueDetail() {
                             className={clsx(
                               'max-w-[90%] rounded-lg p-2 text-sm',
                               msg.role === 'user'
-                                ? 'bg-primary-600 text-white'
+                                ? 'bg-primary-600 text-dark-50'
                                 : 'bg-gray-100 text-gray-800'
                             )}
                           >

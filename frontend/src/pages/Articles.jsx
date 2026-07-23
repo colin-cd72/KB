@@ -344,7 +344,7 @@ function Articles() {
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-fade-in">
+          <div className="bg-dark-100 rounded-xl shadow-xl max-w-md w-full p-6 animate-fade-in">
             <h3 className="text-lg font-semibold text-dark-900 mb-2">Delete Article?</h3>
             <p className="text-dark-500 mb-6">
               This action cannot be undone. The article and all its images will be permanently deleted.

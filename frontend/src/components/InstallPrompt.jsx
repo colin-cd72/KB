@@ -71,7 +71,7 @@ function InstallPrompt() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 animate-fade-in md:left-auto md:right-4 md:max-w-sm">
-      <div className="bg-white rounded-xl shadow-2xl border border-dark-100 overflow-hidden">
+      <div className="bg-dark-100 rounded-xl shadow-2xl border border-dark-100 overflow-hidden">
         <div className="p-4">
           <div className="flex items-start gap-3">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center flex-shrink-0">

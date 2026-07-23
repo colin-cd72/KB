@@ -238,7 +238,7 @@ function Manuals() {
       {/* Upload Modal */}
       {showUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+          <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold">Upload Manual</h2>
               <button onClick={() => setShowUpload(false)} className="p-2 hover:bg-gray-100 rounded-lg">

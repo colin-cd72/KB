@@ -422,7 +422,7 @@ function ArticleEditor() {
               </div>
             )}
             {uploading && (
-              <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+              <div className="absolute inset-0 bg-dark-100/80 flex items-center justify-center">
                 <div className="flex items-center gap-2 text-primary-600">
                   <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
                   <span>Uploading image...</span>

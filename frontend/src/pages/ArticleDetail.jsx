@@ -176,7 +176,7 @@ function ArticleDetail() {
                   href={image.file_path}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block aspect-square rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow"
+                  className="block aspect-square rounded-lg overflow-hidden bg-dark-100 shadow-sm hover:shadow-md transition-shadow"
                 >
                   <img
                     src={image.file_path}

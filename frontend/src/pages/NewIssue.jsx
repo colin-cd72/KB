@@ -341,7 +341,7 @@ function NewIssue() {
                       placeholder="Type serial number or model to search..."
                     />
                     {showEquipmentSuggestions && equipmentSuggestions.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div className="absolute z-10 w-full mt-1 bg-dark-100 border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                         {equipmentSuggestions.map((eq) => (
                           <button
                             key={eq.id}
@@ -360,7 +360,7 @@ function NewIssue() {
                       </div>
                     )}
                     {showEquipmentSuggestions && equipmentSearch.length >= 2 && equipmentSuggestions.length === 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
+                      <div className="absolute z-10 w-full mt-1 bg-dark-100 border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500">
                         No equipment found
                       </div>
                     )}
@@ -452,7 +452,7 @@ function NewIssue() {
                       className={clsx(
                         'max-w-[90%] rounded-lg p-3 text-sm',
                         msg.role === 'user'
-                          ? 'bg-primary-600 text-white'
+                          ? 'bg-primary-600 text-dark-50'
                           : 'bg-gray-100 text-gray-800'
                       )}
                     >
@@ -523,7 +523,7 @@ function NewIssue() {
                         key={issue.id}
                         to={`/issues/${issue.id}`}
                         target="_blank"
-                        className="block p-2 bg-white rounded border border-gray-200 hover:border-primary-300 transition-colors"
+                        className="block p-2 bg-dark-100 rounded border border-gray-200 hover:border-primary-300 transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
