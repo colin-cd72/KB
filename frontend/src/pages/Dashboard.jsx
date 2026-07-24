@@ -636,7 +636,7 @@ function TasksWidget() {
   });
 
   const open = tasks || [];
-  const shown = sortTasksByUrgency(open).slice(0, 5);
+  const shown = sortTasksByUrgency(open).slice(0, 50);
   // Both endpoints are facility-wide and uncached, so stats.pending and the list
   // length agree; fall back to the list length if stats hasn't loaded.
   const moreCount = Math.max(0, (stats?.pending ?? open.length) - shown.length);
@@ -681,7 +681,7 @@ function TasksWidget() {
           <p className="empty-state-text">No open tasks — you're all clear.</p>
         </div>
       ) : (
-        <ul className="divide-y divide-dark-100">
+        <ul className="divide-y divide-dark-100 max-h-80 overflow-y-auto">
           {shown.map((t) => {
             const overdue = isTaskOverdue(t.due_date);
             const dueToday = isTaskDueToday(t.due_date);
