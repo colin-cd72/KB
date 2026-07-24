@@ -144,7 +144,7 @@ export default function ScanAsset() {
             </>
           ) : (
             <button onClick={() => setScanning(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg py-4 btn-primary">
+              className="flex w-full items-center justify-center gap-2 rounded-lg py-4 btn btn-primary">
               <Camera className="h-5 w-5" /> Scan barcode
             </button>
           )}
@@ -170,11 +170,11 @@ export default function ScanAsset() {
             Tag <strong>{tag}</strong> is not yet assigned.
           </p>
           <button onClick={() => { setMode('bind'); setStage('form'); }}
-            className="w-full rounded-lg py-4 btn-secondary">
+            className="w-full rounded-lg py-4 btn btn-secondary">
             Attach to an existing asset
           </button>
           <button onClick={() => { setMode('new'); setStage('form'); }}
-            className="w-full rounded-lg py-4 btn-primary">
+            className="w-full rounded-lg py-4 btn btn-primary">
             Register a new asset
           </button>
         </div>
@@ -290,7 +290,7 @@ export default function ScanAsset() {
               )}
               <button disabled={!bindTarget || bind.isPending}
                 onClick={() => bind.mutate({ id: bindTarget.id, asset_tag: tag })}
-                className="w-full rounded-lg py-3 btn-primary disabled:opacity-50">
+                className="w-full rounded-lg py-3 btn btn-primary disabled:opacity-50">
                 {bind.isPending ? 'Binding…' : 'Bind tag to this asset'}
               </button>
             </div>
@@ -310,7 +310,7 @@ export default function ScanAsset() {
                 onClick={() => create.mutate({
                   ...form, asset_tag: tag, asset_photo_path: photoPath, ai_identification: ai,
                 })}
-                className="w-full rounded-lg py-3 btn-primary disabled:opacity-50">
+                className="w-full rounded-lg py-3 btn btn-primary disabled:opacity-50">
                 {create.isPending ? 'Saving…' : 'Save asset'}
               </button>
               {!form.name && (

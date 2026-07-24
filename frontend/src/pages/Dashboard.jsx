@@ -450,7 +450,7 @@ function RmaTrackingWidget({ rmas }) {
               </span>
             </div>
             <div className="flex items-center gap-2 mt-2">
-              <span className={clsx('badge text-xs', getCarrierBadge(rma.carrier))}>
+              <span className={clsx('badge text-xs', getCarrierBadge())}>
                 {getCarrierName(rma.carrier)}
               </span>
               <code className="text-xs text-dark-500 font-mono truncate flex-1">
