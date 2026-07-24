@@ -594,8 +594,8 @@ function Equipment() {
                   />
                 </div>
               ) : (
-                <div className="h-32 bg-gradient-to-br from-purple-50 to-purple-100 flex items-center justify-center">
-                  <Monitor className="w-12 h-12 text-purple-300" />
+                <div className="h-32 bg-gradient-to-br from-dark-200 to-dark-300 flex items-center justify-center">
+                  <Monitor className="w-12 h-12 text-dark-500" />
                 </div>
               )}
               <div className="p-4">
@@ -644,15 +644,15 @@ function Equipment() {
                 <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-3">
                     {eq.open_issue_count > 0 ? (
-                      <span className="flex items-center gap-1 text-yellow-600">
+                      <span className="flex items-center gap-1 text-warning-500">
                         <AlertCircle className="w-3.5 h-3.5" />
                         {eq.open_issue_count} open
                       </span>
                     ) : (
-                      <span className="text-green-600">No issues</span>
+                      <span className="text-success-500">No issues</span>
                     )}
                     {eq.manual_count > 0 && (
-                      <span className="flex items-center gap-1 text-blue-600">
+                      <span className="flex items-center gap-1 text-accent-500">
                         <BookOpen className="w-3.5 h-3.5" />
                         {eq.manual_count} manual{eq.manual_count > 1 ? 's' : ''}
                       </span>
@@ -685,9 +685,9 @@ function Equipment() {
                         e.stopPropagation();
                         if (confirm('Remove this equipment?')) deleteEquipment.mutate(eq.id);
                       }}
-                      className="p-2 hover:bg-red-100 rounded-lg"
+                      className="p-2 hover:bg-danger-500/10 rounded-lg"
                     >
-                      <Trash2 className="w-4 h-4 text-red-500" />
+                      <Trash2 className="w-4 h-4 text-danger-500" />
                     </button>
                   </div>
                 )}
@@ -714,7 +714,7 @@ function Equipment() {
 
       {/* Add/Edit Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold">{editingId ? 'Edit' : 'Add'} Equipment</h2>
@@ -801,7 +801,7 @@ function Equipment() {
 
       {/* QR Code Modal */}
       {showQR && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl p-6 mx-4 text-center">
             <h2 className="text-lg font-semibold mb-4">{showQR.name}</h2>
             <div className="inline-block p-4 bg-dark-100 border rounded-lg">
@@ -817,7 +817,7 @@ function Equipment() {
 
       {/* Equipment Details Modal */}
       {selectedEquipment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col">
             {/* Header with Image */}
             <div className="flex items-start gap-4 px-6 py-4 border-b">
@@ -832,15 +832,15 @@ function Equipment() {
                     />
                   </div>
                 ) : (
-                  <div className="w-24 h-24 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <Monitor className="w-10 h-10 text-purple-400" />
+                  <div className="w-24 h-24 bg-dark-200 rounded-lg flex items-center justify-center">
+                    <Monitor className="w-10 h-10 text-dark-500" />
                   </div>
                 )}
                 {canEdit && equipmentDetails?.equipment?.image_path && (
                   <button
                     onClick={() => handleDeleteImage(selectedEquipment.id)}
                     disabled={fetchingImage}
-                    className="absolute -top-2 -right-2 p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 shadow-lg"
+                    className="absolute -top-2 -right-2 p-1.5 bg-danger-500 text-dark-50 rounded-full hover:bg-danger-400 shadow-lg"
                     title="Remove image"
                   >
                     <X className="w-3 h-3" />
@@ -858,7 +858,7 @@ function Equipment() {
                     <button
                       onClick={() => imageInputRef.current?.click()}
                       disabled={fetchingImage}
-                      className="p-1.5 bg-green-600 text-white rounded-full hover:bg-green-700 shadow-lg"
+                      className="p-1.5 bg-success-500 text-dark-50 rounded-full hover:bg-success-400 shadow-lg"
                       title="Upload image"
                     >
                       {fetchingImage ? (
@@ -1018,17 +1018,17 @@ function Equipment() {
                           >
                             <div className="flex items-center gap-3">
                               <span className={`w-2 h-2 rounded-full ${
-                                issue.status === 'open' ? 'bg-red-500' :
-                                issue.status === 'in_progress' ? 'bg-yellow-500' :
-                                issue.status === 'resolved' ? 'bg-green-500' : 'bg-gray-400'
+                                issue.status === 'open' ? 'bg-danger-500' :
+                                issue.status === 'in_progress' ? 'bg-warning-500' :
+                                issue.status === 'resolved' ? 'bg-success-500' : 'bg-gray-400'
                               }`} />
                               <span className="text-gray-900">{issue.title}</span>
                             </div>
                             <div className="flex items-center gap-2 text-xs">
                               <span className={`px-2 py-0.5 rounded-full ${
-                                issue.priority === 'critical' ? 'bg-red-100 text-red-700' :
-                                issue.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                                issue.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                issue.priority === 'critical' ? 'bg-danger-100 text-danger-600' :
+                                issue.priority === 'high' ? 'bg-warning-100 text-warning-600' :
+                                issue.priority === 'medium' ? 'bg-warning-100 text-warning-500' :
                                 'bg-gray-100 text-gray-700'
                               }`}>
                                 {issue.priority}
@@ -1085,14 +1085,14 @@ function Equipment() {
                         {equipmentDetails.manuals.map((manual) => (
                           <div
                             key={manual.id}
-                            className="flex items-center justify-between p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors group"
+                            className="flex items-center justify-between p-3 bg-accent-500/10 rounded-lg hover:bg-accent-500/20 transition-colors group"
                           >
                             <Link
                               to={`/manuals/${manual.id}`}
                               onClick={closeDetails}
                               className="flex items-center gap-3 flex-1"
                             >
-                              <FileText className="w-4 h-4 text-blue-600" />
+                              <FileText className="w-4 h-4 text-accent-500" />
                               <span className="text-gray-900">{manual.title}</span>
                               {manual.version && (
                                 <span className="text-xs text-gray-500">v{manual.version}</span>
@@ -1102,14 +1102,14 @@ function Equipment() {
                               <Link
                                 to={`/manuals/${manual.id}`}
                                 onClick={closeDetails}
-                                className="p-1 text-gray-400 hover:text-blue-600"
+                                className="p-1 text-gray-400 hover:text-accent-500"
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </Link>
                               {canEdit && (
                                 <button
                                   onClick={() => handleUnlinkManual(selectedEquipment.id, manual.id)}
-                                  className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="p-1 text-gray-400 hover:text-danger-500 opacity-0 group-hover:opacity-100 transition-opacity"
                                   title="Unlink manual"
                                 >
                                   <Unlink className="w-4 h-4" />
@@ -1120,12 +1120,12 @@ function Equipment() {
                         ))}
                       </div>
                     ) : (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="bg-warning-500/10 border border-warning-500/30 rounded-lg p-4">
                         <div className="flex items-start gap-3">
-                          <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                          <AlertTriangle className="w-5 h-5 text-warning-500 mt-0.5" />
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-yellow-800">No manuals linked</p>
-                            <p className="text-xs text-yellow-700 mt-1">
+                            <p className="text-sm font-medium text-warning-500">No manuals linked</p>
+                            <p className="text-xs text-warning-500 mt-1">
                               Link a manual to help with troubleshooting and documentation
                             </p>
                             {canEdit && (
@@ -1135,7 +1135,7 @@ function Equipment() {
                                     setShowManualFinder(true);
                                     handleFindManualOnline(selectedEquipment.id);
                                   }}
-                                  className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1.5 rounded-lg flex items-center gap-1"
+                                  className="text-xs bg-warning-100 hover:bg-warning-200 text-warning-600 px-3 py-1.5 rounded-lg flex items-center gap-1"
                                 >
                                   <Globe className="w-3 h-3" />
                                   Find Manual Online
@@ -1145,7 +1145,7 @@ function Equipment() {
                                     setShowLinkManual(true);
                                     handleGetManualSuggestions(selectedEquipment.id);
                                   }}
-                                  className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1.5 rounded-lg flex items-center gap-1"
+                                  className="text-xs bg-warning-100 hover:bg-warning-200 text-warning-600 px-3 py-1.5 rounded-lg flex items-center gap-1"
                                 >
                                   <Link2 className="w-3 h-3" />
                                   Link Existing Manual
@@ -1160,7 +1160,7 @@ function Equipment() {
 
                   {/* Find Manual Online Modal */}
                   {showManualFinder && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
                       <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
                         <div className="flex items-center justify-between px-6 py-4 border-b">
                           <div className="flex items-center gap-3">
@@ -1204,13 +1204,13 @@ function Equipment() {
                               {manualSearchResults.found ? (
                                 <>
                                   {manualSearchResults.manufacturer_url && (
-                                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                                      <p className="text-sm font-medium text-green-800 mb-2">Manufacturer Website</p>
+                                    <div className="p-4 bg-success-500/10 border border-success-500/30 rounded-lg">
+                                      <p className="text-sm font-medium text-success-500 mb-2">Manufacturer Website</p>
                                       <a
                                         href={manualSearchResults.manufacturer_url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-sm text-green-700 hover:text-green-800 underline flex items-center gap-1"
+                                        className="text-sm text-success-500 hover:text-success-400 underline flex items-center gap-1"
                                       >
                                         {manualSearchResults.manufacturer_url}
                                         <ExternalLink className="w-3 h-3" />
@@ -1219,13 +1219,13 @@ function Equipment() {
                                   )}
 
                                   {manualSearchResults.manual_search_url && (
-                                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                      <p className="text-sm font-medium text-blue-800 mb-2">Documentation Page</p>
+                                    <div className="p-4 bg-accent-500/10 border border-accent-500/30 rounded-lg">
+                                      <p className="text-sm font-medium text-accent-500 mb-2">Documentation Page</p>
                                       <a
                                         href={manualSearchResults.manual_search_url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-sm text-blue-700 hover:text-blue-800 underline flex items-center gap-1"
+                                        className="text-sm text-accent-500 hover:text-accent-400 underline flex items-center gap-1"
                                       >
                                         {manualSearchResults.manual_search_url}
                                         <ExternalLink className="w-3 h-3" />
@@ -1285,13 +1285,13 @@ function Equipment() {
                                 </>
                               ) : (
                                 <div className="text-center py-8">
-                                  <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
+                                  <AlertTriangle className="w-12 h-12 text-warning-500 mx-auto mb-3" />
                                   <p className="text-gray-700 font-medium">No manual sources found</p>
                                   <p className="text-sm text-gray-500 mt-1">
                                     Try searching manually on the manufacturer's website
                                   </p>
                                   {manualSearchResults.error && (
-                                    <p className="text-xs text-red-500 mt-2">{manualSearchResults.error}</p>
+                                    <p className="text-xs text-danger-500 mt-2">{manualSearchResults.error}</p>
                                   )}
                                 </div>
                               )}
@@ -1304,7 +1304,7 @@ function Equipment() {
 
                   {/* Link Existing Manual Modal */}
                   {showLinkManual && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50">
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
                       <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
                         <div className="flex items-center justify-between px-6 py-4 border-b">
                           <div className="flex items-center gap-3">
@@ -1333,12 +1333,12 @@ function Equipment() {
                               {manualSuggestions.ai_suggested && (
                                 <div>
                                   <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                                    <Sparkles className="w-4 h-4 text-purple-500" />
+                                    <Sparkles className="w-4 h-4 text-accent-500" />
                                     AI Recommended
                                   </p>
                                   <button
                                     onClick={() => handleLinkManual(selectedEquipment.id, manualSuggestions.ai_suggested.id)}
-                                    className="w-full p-4 bg-purple-50 border-2 border-purple-200 rounded-lg hover:bg-purple-100 text-left transition-colors"
+                                    className="w-full p-4 bg-accent-500/10 border-2 border-accent-500/30 rounded-lg hover:bg-accent-500/20 text-left transition-colors"
                                   >
                                     <div className="flex items-center justify-between">
                                       <div>
@@ -1347,7 +1347,7 @@ function Equipment() {
                                           <p className="text-sm text-gray-500 mt-1">{manualSuggestions.ai_suggested.description}</p>
                                         )}
                                       </div>
-                                      <Link2 className="w-5 h-5 text-purple-600" />
+                                      <Link2 className="w-5 h-5 text-accent-500" />
                                     </div>
                                   </button>
                                 </div>
@@ -1461,7 +1461,7 @@ function Equipment() {
                           closeDetails();
                         }
                       }}
-                      className="btn btn-secondary text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      className="btn btn-secondary text-danger-500 hover:bg-danger-500/10 flex items-center gap-2"
                     >
                       <Trash2 className="w-4 h-4" />
                       Delete
@@ -1479,7 +1479,7 @@ function Equipment() {
 
       {/* Import Modal */}
       {showImport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
@@ -1554,13 +1554,13 @@ function Equipment() {
               {importStep === 2 && importData && (
                 <div className="space-y-6">
                   {/* Info banner */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-                    <FileSpreadsheet className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div className="bg-accent-500/10 border border-accent-500/30 rounded-lg p-4 flex items-start gap-3">
+                    <FileSpreadsheet className="w-5 h-5 text-accent-500 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-blue-900">
+                      <p className="text-sm font-medium text-accent-500">
                         {importData.filename} - {importData.totalRows} rows found
                       </p>
-                      <p className="text-xs text-blue-700 mt-1">
+                      <p className="text-xs text-accent-500 mt-1">
                         Map your spreadsheet columns to equipment fields below
                       </p>
                     </div>
@@ -1570,9 +1570,9 @@ function Equipment() {
                   {importData.aiAnalysis && (
                     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
                       importData.aiAnalysis.confidence === 'high'
-                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        ? 'bg-success-500/10 text-success-500 border border-success-500/30'
                         : importData.aiAnalysis.confidence === 'medium'
-                        ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                        ? 'bg-warning-500/10 text-warning-500 border border-warning-500/30'
                         : 'bg-gray-50 text-gray-700 border border-gray-200'
                     }`}>
                       <Sparkles className="w-4 h-4" />
@@ -1593,7 +1593,7 @@ function Equipment() {
                     {importData.headers.map((header) => {
                       const isMapped = columnMappings[header] && columnMappings[header] !== '';
                       return (
-                        <div key={header} className={`flex items-center gap-3 p-3 rounded-lg ${isMapped ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
+                        <div key={header} className={`flex items-center gap-3 p-3 rounded-lg ${isMapped ? 'bg-success-500/10 border border-success-500/30' : 'bg-accent-500/10 border border-accent-500/30'}`}>
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-900">{header}</p>
                             <p className="text-xs text-gray-500 truncate">
@@ -1621,11 +1621,11 @@ function Equipment() {
                   {/* Legend */}
                   <div className="flex items-center gap-4 text-xs">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded bg-green-200 border border-green-300"></div>
+                      <div className="w-3 h-3 rounded bg-success-500/30 border border-success-500/50"></div>
                       <span className="text-gray-600">Mapped to existing field</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded bg-blue-200 border border-blue-300"></div>
+                      <div className="w-3 h-3 rounded bg-accent-500/30 border border-accent-500/50"></div>
                       <span className="text-gray-600">Will create new database column</span>
                     </div>
                   </div>
@@ -1680,22 +1680,22 @@ function Equipment() {
               {importStep === 3 && importResults && (
                 <div className="text-center py-8">
                   <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
-                    importResults.imported > 0 ? 'bg-green-100' : 'bg-yellow-100'
+                    importResults.imported > 0 ? 'bg-success-100' : 'bg-warning-100'
                   }`}>
                     {importResults.imported > 0 ? (
-                      <Check className="w-8 h-8 text-green-600" />
+                      <Check className="w-8 h-8 text-success-500" />
                     ) : (
-                      <AlertTriangle className="w-8 h-8 text-yellow-600" />
+                      <AlertTriangle className="w-8 h-8 text-warning-500" />
                     )}
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">Import Complete</h3>
                   <div className="flex justify-center gap-8 mb-6">
                     <div>
-                      <p className="text-3xl font-bold text-green-600">{importResults.imported}</p>
+                      <p className="text-3xl font-bold text-success-500">{importResults.imported}</p>
                       <p className="text-sm text-gray-500">Imported</p>
                     </div>
                     <div>
-                      <p className="text-3xl font-bold text-yellow-600">{importResults.skipped}</p>
+                      <p className="text-3xl font-bold text-warning-500">{importResults.skipped}</p>
                       <p className="text-sm text-gray-500">Skipped</p>
                     </div>
                   </div>
@@ -1706,7 +1706,7 @@ function Equipment() {
                       <h4 className="text-sm font-medium text-gray-900 mb-2">New database columns created:</h4>
                       <div className="flex flex-wrap gap-2">
                         {importResults.columnsCreated.map((field, i) => (
-                          <span key={i} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                          <span key={i} className="px-2 py-1 bg-success-100 text-success-500 rounded text-xs font-medium">
                             {field}
                           </span>
                         ))}

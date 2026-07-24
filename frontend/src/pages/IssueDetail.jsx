@@ -498,7 +498,7 @@ function IssueDetail() {
                       {canEdit && (
                         <button
                           onClick={() => handleDeleteAttachment(attachment.id)}
-                          className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                          className="p-1.5 bg-danger-500 text-dark-50 rounded-lg hover:bg-danger-400"
                           title="Delete"
                         >
                           <X className="w-4 h-4" />
@@ -581,13 +581,13 @@ function IssueDetail() {
               {solutions?.map((solution) => (
                 <div key={solution.id} className={clsx(
                   'p-6',
-                  solution.is_accepted && 'bg-green-50 border-l-4 border-green-500'
+                  solution.is_accepted && 'bg-success-500/10 border-l-4 border-success-500'
                 )}>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-gray-900">{solution.created_by_name}</span>
                       {solution.is_accepted && (
-                        <span className="flex items-center gap-1 text-green-600 text-sm">
+                        <span className="flex items-center gap-1 text-success-500 text-sm">
                           <CheckCircle className="w-4 h-4" />
                           Accepted
                         </span>
@@ -608,8 +608,8 @@ function IssueDetail() {
                           key={star}
                           onClick={() => rateSolution.mutate({ solutionId: solution.id, rating: star })}
                           className={clsx(
-                            'p-1 hover:text-yellow-500',
-                            solution.user_rating >= star ? 'text-yellow-500' : 'text-gray-300'
+                            'p-1 hover:text-warning-500',
+                            solution.user_rating >= star ? 'text-warning-500' : 'text-gray-300'
                           )}
                         >
                           <Star className="w-4 h-4 fill-current" />

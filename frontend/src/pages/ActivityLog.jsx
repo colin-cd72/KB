@@ -34,10 +34,10 @@ const actionIcons = {
 };
 
 const actionColors = {
-  login: 'bg-green-100 text-green-700',
-  create: 'bg-blue-100 text-blue-700',
-  update: 'bg-yellow-100 text-yellow-700',
-  delete: 'bg-red-100 text-red-700',
+  login: 'bg-success-100 text-success-500',
+  create: 'bg-accent-100 text-accent-600',
+  update: 'bg-warning-100 text-warning-600',
+  delete: 'bg-danger-100 text-danger-600',
   view: 'bg-gray-100 text-gray-700',
 };
 
@@ -146,8 +146,8 @@ function ActivityLog() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="card p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                <LogIn className="w-5 h-5 text-green-600" />
+              <div className="w-10 h-10 rounded-lg bg-success-100 flex items-center justify-center">
+                <LogIn className="w-5 h-5 text-success-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold text-dark-900">
@@ -159,8 +159,8 @@ function ActivityLog() {
           </div>
           <div className="card p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <Plus className="w-5 h-5 text-blue-600" />
+              <div className="w-10 h-10 rounded-lg bg-accent-100 flex items-center justify-center">
+                <Plus className="w-5 h-5 text-accent-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold text-dark-900">
@@ -172,8 +172,8 @@ function ActivityLog() {
           </div>
           <div className="card p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
-                <Edit className="w-5 h-5 text-yellow-600" />
+              <div className="w-10 h-10 rounded-lg bg-warning-100 flex items-center justify-center">
+                <Edit className="w-5 h-5 text-warning-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold text-dark-900">
@@ -185,8 +185,8 @@ function ActivityLog() {
           </div>
           <div className="card p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
-                <Trash2 className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-lg bg-danger-100 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-danger-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold text-dark-900">

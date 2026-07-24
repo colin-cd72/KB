@@ -118,7 +118,7 @@ export default function ScanAsset() {
 
   const aiMark = (field) =>
     ai && ai[field] && form[field] === ai[field]
-      ? <span className="ml-2 inline-flex items-center gap-1 text-xs text-purple-600"><Sparkles className="h-3 w-3" />AI</span>
+      ? <span className="ml-2 inline-flex items-center gap-1 text-xs text-accent-500"><Sparkles className="h-3 w-3" />AI</span>
       : null;
 
   const resetAll = () => {
@@ -138,13 +138,13 @@ export default function ScanAsset() {
             <>
               <BarcodeScanner onScan={handleScan} onError={handleScanError} />
               <button onClick={() => setScanning(false)}
-                className="w-full rounded-lg border border-gray-300 py-3 text-gray-700">
+                className="w-full btn btn-secondary py-3">
                 Cancel
               </button>
             </>
           ) : (
             <button onClick={() => setScanning(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-4 text-white">
+              className="flex w-full items-center justify-center gap-2 rounded-lg py-4 btn btn-primary">
               <Camera className="h-5 w-5" /> Scan barcode
             </button>
           )}
@@ -154,9 +154,9 @@ export default function ScanAsset() {
             <div className="flex gap-2">
               <input value={manualTag} onChange={(e) => setManualTag(e.target.value)}
                 inputMode="numeric" placeholder="0075"
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-3" />
+                className="input flex-1" />
               <button type="submit" disabled={lookup.isPending}
-                className="rounded-lg bg-gray-800 px-4 text-white disabled:opacity-50">
+                className="btn btn-primary px-4 disabled:opacity-50">
                 {lookup.isPending ? '…' : 'Go'}
               </button>
             </div>
@@ -166,15 +166,15 @@ export default function ScanAsset() {
 
       {stage === 'choose' && (
         <div className="space-y-3">
-          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="rounded-lg bg-warning-500/10 p-3 text-sm text-warning-500">
             Tag <strong>{tag}</strong> is not yet assigned.
           </p>
           <button onClick={() => { setMode('bind'); setStage('form'); }}
-            className="w-full rounded-lg border-2 border-indigo-600 py-4 text-indigo-700">
+            className="w-full rounded-lg py-4 btn btn-secondary">
             Attach to an existing asset
           </button>
           <button onClick={() => { setMode('new'); setStage('form'); }}
-            className="w-full rounded-lg bg-indigo-600 py-4 text-white">
+            className="w-full rounded-lg py-4 btn btn-primary">
             Register a new asset
           </button>
         </div>
@@ -182,7 +182,7 @@ export default function ScanAsset() {
 
       {stage === 'found' && found && (
         <div className="space-y-3">
-          <p className="rounded-lg bg-green-50 p-3 text-sm text-green-900">
+          <p className="rounded-lg bg-success-500/10 p-3 text-sm text-success-500">
             Tag <strong>{tag}</strong> is registered.
           </p>
           <dl className="rounded-lg border p-3 text-sm">
@@ -230,23 +230,23 @@ export default function ScanAsset() {
           )}
 
           {ai && ai.confidence && (
-            <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm">
-              <p className="font-medium text-purple-900">
+            <div className="rounded-lg border border-accent-500/30 bg-accent-500/10 p-3 text-sm">
+              <p className="font-medium text-accent-500">
                 AI confidence: {ai.confidence}
               </p>
-              {ai.reasoning && <p className="mt-1 text-purple-800">{ai.reasoning}</p>}
+              {ai.reasoning && <p className="mt-1 text-dark-700">{ai.reasoning}</p>}
               {ai.label_text && (
-                <p className="mt-1 font-mono text-xs text-purple-700">{ai.label_text}</p>
+                <p className="mt-1 font-mono text-xs text-dark-700">{ai.label_text}</p>
               )}
               {ai.serial_number_unverified && (
-                <p className="mt-2 rounded bg-amber-100 p-2 text-amber-900">
+                <p className="mt-2 rounded bg-warning-100 p-2 text-warning-600">
                   Possible serial <span className="font-mono">{ai.serial_number_unverified}</span> —
                   could not be confirmed against the label. Type it in yourself if it is correct.
                 </p>
               )}
               {(ai.confidence === 'low' || ai.confidence === 'none') && (
-                <div className="mt-2 rounded bg-purple-100 p-2">
-                  <p className="mb-1 text-purple-900">
+                <div className="mt-2 rounded bg-accent-100 p-2">
+                  <p className="mb-1 text-accent-500">
                     Not pre-filled. Copy anything useful across yourself.
                   </p>
                   {ai.manufacturer && <p>Manufacturer: <span className="font-mono">{ai.manufacturer}</span></p>}
@@ -265,32 +265,32 @@ export default function ScanAsset() {
               <input value={search}
                 onChange={(e) => { setSearch(e.target.value); setBindTarget(null); }}
                 placeholder={ai?.model || 'Search by name or model'}
-                className="w-full rounded-lg border border-gray-300 px-3 py-3" />
+                className="input w-full" />
               <ul className="max-h-64 divide-y overflow-auto rounded-lg border">
                 {(candidates.data?.data?.equipment || []).map((eq) => (
                   <li key={eq.id}>
                     <button onClick={() => setBindTarget(eq)}
-                      className={`flex w-full items-center justify-between p-3 text-left ${bindTarget?.id === eq.id ? 'bg-indigo-50' : ''}`}>
+                      className={`flex w-full items-center justify-between p-3 text-left ${bindTarget?.id === eq.id ? 'bg-accent-500/10' : ''}`}>
                       <span>
                         <span className="block font-medium">{eq.name || '(no name)'}</span>
                         <span className="block text-xs text-gray-500">
                           {eq.manufacturer} {eq.model}
                         </span>
                       </span>
-                      {bindTarget?.id === eq.id && <Check className="h-4 w-4 text-indigo-600" />}
+                      {bindTarget?.id === eq.id && <Check className="h-4 w-4 text-accent-500" />}
                     </button>
                   </li>
                 ))}
               </ul>
               {bindTarget && (
-                <p className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
+                <p className="rounded-lg bg-accent-100 p-3 text-sm text-accent-600">
                   Selected: <strong>{bindTarget.name || '(no name)'}</strong>
                   {bindTarget.model ? ` — ${bindTarget.model}` : ''}
                 </p>
               )}
               <button disabled={!bindTarget || bind.isPending}
                 onClick={() => bind.mutate({ id: bindTarget.id, asset_tag: tag })}
-                className="w-full rounded-lg bg-indigo-600 py-3 text-white disabled:opacity-50">
+                className="w-full rounded-lg py-3 btn btn-primary disabled:opacity-50">
                 {bind.isPending ? 'Binding…' : 'Bind tag to this asset'}
               </button>
             </div>
@@ -303,14 +303,14 @@ export default function ScanAsset() {
                   </span>
                   <input value={form[key] || ''}
                     onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-3" />
+                    className="input w-full" />
                 </label>
               ))}
               <button disabled={!form.name || create.isPending}
                 onClick={() => create.mutate({
                   ...form, asset_tag: tag, asset_photo_path: photoPath, ai_identification: ai,
                 })}
-                className="w-full rounded-lg bg-indigo-600 py-3 text-white disabled:opacity-50">
+                className="w-full rounded-lg py-3 btn btn-primary disabled:opacity-50">
                 {create.isPending ? 'Saving…' : 'Save asset'}
               </button>
               {!form.name && (

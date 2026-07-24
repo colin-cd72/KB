@@ -68,7 +68,7 @@ function Register() {
                 placeholder="John Doe"
               />
               {errors.name && (
-                <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+                <p className="mt-1 text-sm text-danger-500">{errors.name.message}</p>
               )}
             </div>
 
@@ -82,7 +82,7 @@ function Register() {
                 placeholder="you@example.com"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-danger-500">{errors.email.message}</p>
               )}
             </div>
 
@@ -105,7 +105,7 @@ function Register() {
                 </button>
               </div>
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-danger-500">{errors.password.message}</p>
               )}
             </div>
 
@@ -119,7 +119,7 @@ function Register() {
                 placeholder="Confirm your password"
               />
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+                <p className="mt-1 text-sm text-danger-500">{errors.confirmPassword.message}</p>
               )}
             </div>
           </div>

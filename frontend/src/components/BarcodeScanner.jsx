@@ -111,7 +111,7 @@ export default function BarcodeScanner({ onScan, onError }) {
         muted
         aria-label="Barcode scanner camera preview"
       />
-      <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 -translate-y-1/2 bg-red-500/70" />
+      <div className="pointer-events-none absolute inset-x-8 top-1/2 h-0.5 -translate-y-1/2 bg-danger-500/70" />
       <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-2 text-xs text-white">
         {status === 'denied' ? <CameraOff className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
         <span>

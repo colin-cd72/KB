@@ -91,7 +91,7 @@ function RmaAgingWidget({ data, total }) {
       <div className="card">
         <div className="px-6 py-5 border-b border-dark-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-warning-400 to-warning-600 flex items-center justify-center">
               <Package className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -112,7 +112,7 @@ function RmaAgingWidget({ data, total }) {
     <div className="card">
       <div className="px-6 py-5 border-b border-dark-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-warning-400 to-warning-600 flex items-center justify-center">
             <Package className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -163,7 +163,7 @@ function EquipmentFailuresWidget({ equipment }) {
       <div className="card">
         <div className="px-6 py-5 border-b border-dark-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-danger-400 to-danger-600 flex items-center justify-center">
               <Monitor className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -190,7 +190,7 @@ function EquipmentFailuresWidget({ equipment }) {
     <div className="card">
       <div className="px-6 py-5 border-b border-dark-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-danger-400 to-danger-600 flex items-center justify-center">
             <Monitor className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -217,7 +217,7 @@ function EquipmentFailuresWidget({ equipment }) {
                 return null;
               }}
             />
-            <Bar dataKey="issues" fill="#ef4444" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="issues" fill="#FF4646" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -232,7 +232,7 @@ function CommonIssuesWidget({ categories }) {
       <div className="card">
         <div className="px-6 py-5 border-b border-dark-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center">
               <Folder className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -255,7 +255,7 @@ function CommonIssuesWidget({ categories }) {
     <div className="card">
       <div className="px-6 py-5 border-b border-dark-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center">
             <Folder className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -281,7 +281,7 @@ function CommonIssuesWidget({ categories }) {
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${percentage}%`,
-                    backgroundColor: cat.color || '#8b5cf6'
+                    backgroundColor: cat.color || '#4EA8FF'
                   }}
                 />
               </div>
@@ -300,7 +300,7 @@ function TrendsWidget({ trends }) {
       <div className="card lg:col-span-2">
         <div className="px-6 py-5 border-b border-dark-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -327,7 +327,7 @@ function TrendsWidget({ trends }) {
     <div className="card lg:col-span-2">
       <div className="px-6 py-5 border-b border-dark-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -358,17 +358,17 @@ function TrendsWidget({ trends }) {
               type="monotone"
               dataKey="created"
               name="Created"
-              stroke="#f59e0b"
+              stroke="#FFB020"
               strokeWidth={2}
-              dot={{ fill: '#f59e0b', r: 4 }}
+              dot={{ fill: '#FFB020', r: 4 }}
             />
             <Line
               type="monotone"
               dataKey="resolved"
               name="Resolved"
-              stroke="#22c55e"
+              stroke="#12C489"
               strokeWidth={2}
-              dot={{ fill: '#22c55e', r: 4 }}
+              dot={{ fill: '#12C489', r: 4 }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -384,7 +384,7 @@ function RmaTrackingWidget({ rmas }) {
       <div className="card">
         <div className="px-6 py-5 border-b border-dark-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
               <MapPin className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -401,16 +401,7 @@ function RmaTrackingWidget({ rmas }) {
     );
   }
 
-  const getCarrierBadge = (carrier) => {
-    const colors = {
-      usps: 'bg-blue-50 text-blue-700 border-blue-200',
-      ups: 'bg-amber-50 text-amber-700 border-amber-200',
-      fedex: 'bg-purple-50 text-purple-700 border-purple-200',
-      dhl: 'bg-red-50 text-red-700 border-red-200',
-      unknown: 'bg-dark-50 text-dark-600 border-dark-200'
-    };
-    return colors[carrier] || colors.unknown;
-  };
+  const getCarrierBadge = () => 'bg-dark-200 text-dark-700 border border-dark-400 font-mono';
 
   const getCarrierName = (carrier) => {
     const names = { usps: 'USPS', ups: 'UPS', fedex: 'FedEx', dhl: 'DHL' };
@@ -418,16 +409,16 @@ function RmaTrackingWidget({ rmas }) {
   };
 
   const getDaysStyle = (days) => {
-    if (days <= 7) return { color: '#16a34a' }; // green-600
-    if (days <= 14) return { color: '#d97706' }; // amber-600
-    return { color: '#dc2626' }; // red-600
+    if (days <= 7) return { color: '#17E6A0' }; // signal
+    if (days <= 14) return { color: '#FFB020' }; // amber
+    return { color: '#FF4646' }; // tally
   };
 
   return (
     <div className="card">
       <div className="px-6 py-5 border-b border-dark-100 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
             <MapPin className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -459,7 +450,7 @@ function RmaTrackingWidget({ rmas }) {
               </span>
             </div>
             <div className="flex items-center gap-2 mt-2">
-              <span className={clsx('badge text-xs', getCarrierBadge(rma.carrier))}>
+              <span className={clsx('badge text-xs', getCarrierBadge())}>
                 {getCarrierName(rma.carrier)}
               </span>
               <code className="text-xs text-dark-500 font-mono truncate flex-1">
@@ -490,7 +481,7 @@ function ShippingUpdatesWidget({ updates }) {
       <div className="card">
         <div className="px-6 py-5 border-b border-dark-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
               <Truck className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -529,7 +520,7 @@ function ShippingUpdatesWidget({ updates }) {
     <div className="card">
       <div className="px-6 py-5 border-b border-dark-100 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center">
             <Truck className="w-5 h-5 text-white" />
           </div>
           <div>

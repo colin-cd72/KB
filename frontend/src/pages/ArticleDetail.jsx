@@ -139,7 +139,7 @@ function ArticleDetail() {
 
         {/* Article Content */}
         <div className="p-8">
-          <div className="prose prose-lg max-w-none prose-headings:text-dark-900 prose-p:text-dark-600 prose-a:text-primary-600 prose-strong:text-dark-800 prose-code:bg-dark-50 prose-code:px-1 prose-code:rounded prose-pre:bg-dark-800 prose-pre:text-dark-100 prose-img:rounded-lg prose-img:shadow-md">
+          <div className="prose prose-lg max-w-none prose-headings:text-dark-900 prose-p:text-dark-600 prose-a:text-primary-600 prose-strong:text-dark-800 prose-code:bg-dark-50 prose-code:px-1 prose-code:rounded prose-pre:bg-dark-200 prose-pre:text-dark-900 prose-img:rounded-lg prose-img:shadow-md">
             <ReactMarkdown
               components={{
                 img: ({ node, ...props }) => (
@@ -149,7 +149,7 @@ function ArticleDetail() {
                   <a {...props} target="_blank" rel="noopener noreferrer" />
                 ),
                 pre: ({ node, children, ...props }) => (
-                  <pre {...props} className="bg-dark-800 text-dark-100 p-4 rounded-lg overflow-x-auto">
+                  <pre {...props} className="bg-dark-200 text-dark-900 p-4 rounded-lg overflow-x-auto">
                     {children}
                   </pre>
                 ),

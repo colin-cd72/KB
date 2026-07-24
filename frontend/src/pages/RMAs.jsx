@@ -630,7 +630,7 @@ function RMAs() {
                           setAnalysisResult(null);
                           setAnalyzedImagePath(null);
                         }}
-                        className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full text-white hover:bg-dark-900"
+                        className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full text-white hover:bg-dark-200"
                       >
                         <X className="w-4 h-4" />
                       </button>

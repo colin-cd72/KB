@@ -95,7 +95,7 @@ function SwipeableTodoItem({ todo, onComplete, onDelete, onEdit, onImageUpload, 
         <div
           className={clsx(
             'flex-1 flex items-center justify-start pl-6 transition-colors',
-            swipeOffset > 40 ? 'bg-green-500' : 'bg-green-400'
+            swipeOffset > 40 ? 'bg-success-500' : 'bg-success-400'
           )}
         >
           <Check className="w-6 h-6 text-white" />
@@ -105,7 +105,7 @@ function SwipeableTodoItem({ todo, onComplete, onDelete, onEdit, onImageUpload, 
         <div
           className={clsx(
             'flex-1 flex items-center justify-end pr-6 transition-colors',
-            swipeOffset < -40 ? 'bg-red-500' : 'bg-red-400'
+            swipeOffset < -40 ? 'bg-danger-500' : 'bg-danger-400'
           )}
         >
           <span className="mr-2 text-white font-medium">Delete</span>
@@ -179,9 +179,9 @@ function TodoCard({
 
   const getPriorityBarColor = (priority) => {
     switch (priority) {
-      case 'high': return 'bg-red-500';
-      case 'medium': return 'bg-yellow-500';
-      case 'low': return 'bg-green-500';
+      case 'high': return 'bg-danger-500';
+      case 'medium': return 'bg-warning-500';
+      case 'low': return 'bg-success-500';
       default: return 'bg-gray-300';
     }
   };
@@ -239,7 +239,7 @@ function TodoCard({
             className={clsx(
               'mt-0.5 flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all',
               todo.status === 'completed'
-                ? 'bg-green-500 border-green-500 text-white'
+                ? 'bg-success-500 border-success-500 text-dark-50'
                 : 'border-gray-300 hover:border-primary-500 hover:bg-primary-50'
             )}
           >
@@ -260,13 +260,13 @@ function TodoCard({
               {todo.due_date && todo.status !== 'completed' && (
                 <>
                   {isOverdue(todo.due_date) && (
-                    <span className="badge bg-red-100 text-red-700 text-xs flex items-center gap-1">
+                    <span className="badge bg-danger-100 text-danger-600 text-xs flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       Overdue
                     </span>
                   )}
                   {isDueToday(todo.due_date) && !isOverdue(todo.due_date) && (
-                    <span className="badge bg-orange-100 text-orange-700 text-xs flex items-center gap-1">
+                    <span className="badge bg-warning-100 text-warning-600 text-xs flex items-center gap-1">
                       <CalendarCheck className="w-3 h-3" />
                       Due Today
                     </span>
@@ -333,7 +333,7 @@ function TodoCard({
               {todo.due_date && (
                 <span className={clsx(
                   'flex items-center gap-1',
-                  isOverdue(todo.due_date) && todo.status !== 'completed' && 'text-red-500 font-medium'
+                  isOverdue(todo.due_date) && todo.status !== 'completed' && 'text-danger-500 font-medium'
                 )}>
                   <Calendar className="w-3 h-3" />
                   {new Date(todo.due_date).toLocaleDateString()}
@@ -374,7 +374,7 @@ function TodoCard({
                             deleteImage(img.id);
                           }
                         }}
-                        className="absolute -top-2 -right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                        className="absolute -top-2 -right-2 p-1.5 bg-danger-500 text-dark-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -406,7 +406,7 @@ function TodoCard({
                           className={clsx(
                             'flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors',
                             subtask.is_completed
-                              ? 'bg-green-500 border-green-500 text-white'
+                              ? 'bg-success-500 border-success-500 text-dark-50'
                               : 'border-gray-300 hover:border-primary-500'
                           )}
                         >
@@ -421,7 +421,7 @@ function TodoCard({
                         {canEdit && (
                           <button
                             onClick={() => onDeleteSubtask(todo.id, subtask.id)}
-                            className="p-1 text-gray-400 hover:text-red-500"
+                            className="p-1 text-gray-400 hover:text-danger-500"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -437,7 +437,7 @@ function TodoCard({
                           value={newSubtask}
                           onChange={(e) => setNewSubtask(e.target.value)}
                           placeholder="Add subtask..."
-                          className="flex-1 text-sm px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-primary-500"
+                          className="input flex-1 text-sm px-2 py-1 rounded"
                         />
                         <button
                           type="submit"
@@ -528,10 +528,10 @@ function TodoCard({
               </button>
               <button
                 onClick={() => onDelete(todo.id)}
-                className="p-2 hover:bg-red-50 rounded-lg"
+                className="p-2 hover:bg-danger-500/10 rounded-lg"
                 title="Delete"
               >
-                <Trash2 className="w-4 h-4 text-red-500" />
+                <Trash2 className="w-4 h-4 text-danger-500" />
               </button>
             </div>
           )}
@@ -1028,10 +1028,10 @@ function Todos() {
             <p className="text-gray-500">
               {stats?.pending || 0} pending
               {stats?.overdue > 0 && (
-                <span className="text-red-500 ml-2">({stats.overdue} overdue)</span>
+                <span className="text-danger-500 ml-2">({stats.overdue} overdue)</span>
               )}
               {stats?.due_today > 0 && (
-                <span className="text-orange-500 ml-2">({stats.due_today} due today)</span>
+                <span className="text-warning-500 ml-2">({stats.due_today} due today)</span>
               )}
             </p>
           </div>
@@ -1080,13 +1080,13 @@ function Todos() {
             className={clsx(
               'px-4 py-2 rounded-lg font-medium text-sm transition-colors',
               showCompleted
-                ? 'bg-green-100 text-green-700'
+                ? 'bg-success-100 text-success-500'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             )}
           >
             Completed
             {stats?.completed > 0 && (
-              <span className="ml-2 px-2 py-0.5 bg-green-200 text-green-800 rounded-full text-xs">
+              <span className="ml-2 px-2 py-0.5 bg-success-500/30 text-success-500 rounded-full text-xs">
                 {stats.completed}
               </span>
             )}
@@ -1113,7 +1113,7 @@ function Todos() {
                   onClick={toggleVoiceInput}
                   className={clsx(
                     'p-1.5 rounded-lg transition-colors',
-                    isListening ? 'bg-red-100 text-red-600' : 'hover:bg-gray-100 text-gray-500'
+                    isListening ? 'bg-danger-100 text-danger-600' : 'hover:bg-gray-100 text-gray-500'
                   )}
                 >
                   {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -1175,7 +1175,7 @@ function Todos() {
                   <button
                     type="button"
                     onClick={() => setQuickAddImages(prev => prev.filter((_, i) => i !== idx))}
-                    className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full"
+                    className="absolute -top-2 -right-2 p-1 bg-danger-500 text-dark-50 rounded-full"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -1221,7 +1221,7 @@ function Todos() {
         </div>
       ) : todos?.length === 0 ? (
         <div className="card p-12 text-center">
-          <CheckCircle2 className="w-16 h-16 mx-auto mb-4 text-green-300" />
+          <CheckCircle2 className="w-16 h-16 mx-auto mb-4 text-success-500/60" />
           <h3 className="text-lg font-medium text-gray-900">All caught up!</h3>
           <p className="mt-1 text-gray-500">No pending todos</p>
         </div>
@@ -1297,10 +1297,10 @@ function Todos() {
               <div key={group}>
                 <h3 className={clsx(
                   'text-sm font-semibold mb-3 flex items-center gap-2',
-                  group === 'Overdue' && 'text-red-600',
-                  group === 'Today' && 'text-orange-600',
-                  group === 'High Priority' && 'text-red-600',
-                  group === 'Completed' && 'text-green-600'
+                  group === 'Overdue' && 'text-danger-500',
+                  group === 'Today' && 'text-warning-500',
+                  group === 'High Priority' && 'text-danger-500',
+                  group === 'Completed' && 'text-success-500'
                 )}>
                   {group === 'Overdue' && <AlertTriangle className="w-4 h-4" />}
                   {group === 'Today' && <CalendarCheck className="w-4 h-4" />}
@@ -1354,7 +1354,7 @@ function Todos() {
 
       {/* Add/Edit Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="bg-dark-100 rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-dark-100">
               <h2 className="text-lg font-semibold">{editingTodo ? 'Edit Todo' : 'Add Todo'}</h2>
