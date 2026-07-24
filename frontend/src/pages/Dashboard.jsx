@@ -622,7 +622,7 @@ function TasksWidget() {
     queryFn: async () => (await todosApi.getStats()).data.stats,
   });
 
-  const { data: tasks } = useQuery({
+  const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['dashboard-tasks'],
     queryFn: async () => (await todosApi.getAll({ show_completed: 'false' })).data.todos,
   });
@@ -637,6 +637,8 @@ function TasksWidget() {
 
   const open = tasks || [];
   const shown = sortTasksByUrgency(open).slice(0, 5);
+  // Both endpoints are facility-wide and uncached, so stats.pending and the list
+  // length agree; fall back to the list length if stats hasn't loaded.
   const moreCount = Math.max(0, (stats?.pending ?? open.length) - shown.length);
 
   return (
@@ -670,7 +672,11 @@ function TasksWidget() {
       </div>
 
       {/* List */}
-      {shown.length === 0 ? (
+      {tasksLoading ? (
+        <div className="px-6 py-8 flex justify-center">
+          <div className="spinner" />
+        </div>
+      ) : shown.length === 0 ? (
         <div className="empty-state py-10">
           <p className="empty-state-text">No open tasks — you're all clear.</p>
         </div>
@@ -683,7 +689,7 @@ function TasksWidget() {
               <li key={t.id} className="px-6 py-3 flex items-center gap-3 hover:bg-primary-500/[0.05] transition-colors">
                 <button
                   type="button"
-                  disabled={!canComplete || toggle.isPending}
+                  disabled={!canComplete || (toggle.isPending && toggle.variables === t.id)}
                   onClick={() => toggle.mutate(t.id)}
                   className="text-dark-500 hover:text-success-500 disabled:opacity-40 disabled:hover:text-dark-500"
                   aria-label="Complete task"
@@ -702,7 +708,7 @@ function TasksWidget() {
                     {overdue ? 'Overdue' : dueToday ? 'Due today' : new Date(t.due_date).toLocaleDateString()}
                   </span>
                 )}
-                <span className="text-xs text-dark-500 flex-shrink-0 w-16 truncate text-right">
+                <span className="text-xs text-dark-500 flex-shrink-0 w-20 truncate text-right" title={t.assigned_to_name || ''}>
                   {t.assigned_to_name || '—'}
                 </span>
               </li>
@@ -711,7 +717,7 @@ function TasksWidget() {
         </ul>
       )}
 
-      {moreCount > 0 && (
+      {!tasksLoading && moreCount > 0 && (
         <Link to="/todos" className="block px-6 py-3 text-sm text-dark-500 hover:text-dark-900 hover:bg-primary-500/[0.05] transition-colors">
           + {moreCount} more open task{moreCount === 1 ? '' : 's'} →
         </Link>
