@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { dashboardApi } from '../services/api';
+import { dashboardApi, todosApi } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import {
   AlertCircle,
@@ -19,7 +19,9 @@ import {
   Truck,
   PackageCheck,
   ExternalLink,
-  MapPin
+  MapPin,
+  ListChecks,
+  Square
 } from 'lucide-react';
 import clsx from 'clsx';
 import {
@@ -569,6 +571,155 @@ function ShippingUpdatesWidget({ updates }) {
   );
 }
 
+// Priority dot color — matches the Tasks page (Todos.jsx getPriorityBarColor)
+function taskPriorityColor(priority) {
+  switch (priority) {
+    case 'high': return 'bg-danger-500';
+    case 'medium': return 'bg-warning-500';
+    case 'low': return 'bg-success-500';
+    default: return 'bg-dark-400';
+  }
+}
+
+// Mirror the Tasks page (Todos.jsx) exactly so a task's overdue/due-today state
+// is identical on the dashboard and the /todos page.
+function isTaskOverdue(dueDate) {
+  if (!dueDate) return false;
+  const due = new Date(dueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return due < today;
+}
+
+function isTaskDueToday(dueDate) {
+  if (!dueDate) return false;
+  return new Date(dueDate).toDateString() === new Date().toDateString();
+}
+
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+
+function sortTasksByUrgency(tasks) {
+  return [...tasks].sort((a, b) => {
+    const aOver = isTaskOverdue(a.due_date), bOver = isTaskOverdue(b.due_date);
+    if (aOver !== bOver) return aOver ? -1 : 1;
+    const aToday = isTaskDueToday(a.due_date), bToday = isTaskDueToday(b.due_date);
+    if (aToday !== bToday) return aToday ? -1 : 1;
+    if (a.due_date && b.due_date && a.due_date !== b.due_date) {
+      return new Date(a.due_date) - new Date(b.due_date);
+    }
+    if (!!a.due_date !== !!b.due_date) return a.due_date ? -1 : 1;
+    return (PRIORITY_RANK[a.priority] ?? 3) - (PRIORITY_RANK[b.priority] ?? 3);
+  });
+}
+
+function TasksWidget() {
+  const { user } = useAuthStore();
+  const queryClient = useQueryClient();
+  const canComplete = user?.role === 'admin' || user?.role === 'technician';
+
+  const { data: stats } = useQuery({
+    queryKey: ['dashboard-task-stats'],
+    queryFn: async () => (await todosApi.getStats()).data.stats,
+  });
+
+  const { data: tasks } = useQuery({
+    queryKey: ['dashboard-tasks'],
+    queryFn: async () => (await todosApi.getAll({ show_completed: 'false' })).data.todos,
+  });
+
+  const toggle = useMutation({
+    mutationFn: (id) => todosApi.toggle(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-task-stats'] });
+    },
+  });
+
+  const open = tasks || [];
+  const shown = sortTasksByUrgency(open).slice(0, 5);
+  const moreCount = Math.max(0, (stats?.pending ?? open.length) - shown.length);
+
+  return (
+    <div className="card">
+      <div className="px-6 py-5 border-b border-dark-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center">
+            <ListChecks className="w-5 h-5 text-dark-50" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-dark-900">Tasks</h2>
+            <p className="text-sm text-dark-500">{stats?.pending ?? 0} open</p>
+          </div>
+        </div>
+        <Link to="/todos" className="text-sm text-primary-500 hover:text-primary-400 flex items-center gap-1">
+          View all <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+
+      {/* Counts */}
+      <div className="px-6 py-4 flex flex-wrap gap-3 border-b border-dark-100">
+        <Link to="/todos" className="badge bg-danger-100 text-danger-600 border border-danger-300/60">
+          {stats?.overdue ?? 0} Overdue
+        </Link>
+        <Link to="/todos" className="badge bg-warning-100 text-warning-600 border border-warning-300/60">
+          {stats?.due_today ?? 0} Due today
+        </Link>
+        <Link to="/todos" className="badge bg-accent-100 text-accent-600 border border-accent-300/60">
+          {stats?.pending ?? 0} Open
+        </Link>
+      </div>
+
+      {/* List */}
+      {shown.length === 0 ? (
+        <div className="empty-state py-10">
+          <p className="empty-state-text">No open tasks — you're all clear.</p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-dark-100">
+          {shown.map((t) => {
+            const overdue = isTaskOverdue(t.due_date);
+            const dueToday = isTaskDueToday(t.due_date);
+            return (
+              <li key={t.id} className="px-6 py-3 flex items-center gap-3 hover:bg-primary-500/[0.05] transition-colors">
+                <button
+                  type="button"
+                  disabled={!canComplete || toggle.isPending}
+                  onClick={() => toggle.mutate(t.id)}
+                  className="text-dark-500 hover:text-success-500 disabled:opacity-40 disabled:hover:text-dark-500"
+                  aria-label="Complete task"
+                >
+                  <Square className="w-5 h-5" />
+                </button>
+                <span className={clsx('w-2.5 h-2.5 rounded-full flex-shrink-0', taskPriorityColor(t.priority))} />
+                <Link to="/todos" className="flex-1 min-w-0 truncate text-dark-800 hover:text-dark-900">
+                  {t.title}
+                </Link>
+                {t.due_date && (
+                  <span className={clsx(
+                    'text-xs font-mono flex-shrink-0',
+                    overdue ? 'text-danger-500 font-semibold' : dueToday ? 'text-warning-500' : 'text-dark-500'
+                  )}>
+                    {overdue ? 'Overdue' : dueToday ? 'Due today' : new Date(t.due_date).toLocaleDateString()}
+                  </span>
+                )}
+                <span className="text-xs text-dark-500 flex-shrink-0 w-16 truncate text-right">
+                  {t.assigned_to_name || '—'}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {moreCount > 0 && (
+        <Link to="/todos" className="block px-6 py-3 text-sm text-dark-500 hover:text-dark-900 hover:bg-primary-500/[0.05] transition-colors">
+          + {moreCount} more open task{moreCount === 1 ? '' : 's'} →
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function Dashboard() {
   const { user } = useAuthStore();
 
@@ -706,6 +857,8 @@ function Dashboard() {
           link="/equipment"
         />
       </div>
+
+      <TasksWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* My Assignments */}
