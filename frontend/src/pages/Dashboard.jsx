@@ -642,7 +642,7 @@ function TasksWidget() {
   const moreCount = Math.max(0, (stats?.pending ?? open.length) - shown.length);
 
   return (
-    <div className="card">
+    <div className="card" data-widget="dashboard-tasks">
       <div className="px-6 py-5 border-b border-dark-100 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-400 to-accent-600 flex items-center justify-center">
